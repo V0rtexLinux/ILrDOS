@@ -110,7 +110,7 @@ jobs:
         run: |
           [ -n "$BUILDROOT_VERSION" ] || unset BUILDROOT_VERSION
           [ -n "$BUILDROOT_SHA256" ]  || unset BUILDROOT_SHA256
-          chmod +x os/build.sh os/merge-defconfig.sh scripts/*.sh
+          chmod +x os/build.sh os/merge-defconfig.sh os/board/ilrdos/post-build.sh os/board/ilrdos/pre-image.sh scripts/*.sh
           set -o pipefail
           os/build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"
           ls -la "$ILRDOS_WORK/dist"
