@@ -102,6 +102,7 @@ jobs:
       - name: Build da imagem
         id: build
         timeout-minutes: 330      # termina antes do job, para o cache ainda ser salvo
+        shell: bash               # ativa pipefail: sem isso o "| tee" esconde a falha do build.sh
         working-directory: ${{ steps.proj.outputs.root }}
         env:
           BUILDROOT_VERSION: ${{ inputs.buildroot_version }}
@@ -110,7 +111,9 @@ jobs:
           [ -n "$BUILDROOT_VERSION" ] || unset BUILDROOT_VERSION
           [ -n "$BUILDROOT_SHA256" ]  || unset BUILDROOT_SHA256
           chmod +x os/build.sh os/merge-defconfig.sh scripts/*.sh
+          set -o pipefail
           os/build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"
+          ls -la "$ILRDOS_WORK/dist"
 
       # Salva o cache mesmo se a build estourar o tempo: a próxima execução continua de onde parou.
       - name: Salvar cache
@@ -158,4 +161,3 @@ jobs:
           name: build-log
           path: ${{ runner.temp }}/build.log
           if-no-files-found: ignore
-          retention-days: 7
