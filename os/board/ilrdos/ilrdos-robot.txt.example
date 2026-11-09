@@ -24,6 +24,16 @@ SONAR_STOP_CM=20
 MOTION_AUTONOMY=auto
 # TRACK_INVERT=1              # inverta se o robô girar para o lado errado ao seguir um rosto
 
+# ---- Estrutura (comando "structure": energia, cérebro, cabos de dados, casco, visor)
+# THROTTLED_FILE=/sys/devices/platform/soc/soc:firmware/get_throttled   # sensor de tensão dos cabos -/+ (opcional)
+
+# ---- Sensor de impacto do casco protetor (queda/batida → para motores + bip suave 3×)
+# Sensor: SW-420, KY-002 ou qualquer chave de vibração digital (pino BCM, nível alto = impacto).
+# Buzzer: buzzer passivo (NÃO use ativo; precisa de PWM). ~900 Hz = audível sem irritar.
+# IMPACT_SENSOR_PIN=20
+# IMPACT_BUZZER_PIN=21
+# IMPACT_BUZZER_FREQ_HZ=900   # 600–1200 Hz recomendado; padrão 900 Hz
+
 # ---- Rostos
 # FACE_THRESHOLD=0.40         # sobe = mais rígido (menos confusões), desce = reconhece mais fácil
 

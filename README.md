@@ -2,6 +2,26 @@
 
 Runtime do robô em C++ (Raspberry Pi OS ou a imagem própria em `os/`). Desde a 2.0.0 o robô fala, ouve, anda, controla dispositivos IoT, conversa, cadastra e reconhece rostos — tudo decidido pelo próprio robô. A arquitetura alvo é o Raspberry Pi Zero 2 W e os GPIO 18 (olho) / 23 (alerta vermelho) descritos no material original.
 
+## Estrutura do robô (2.1.0)
+
+O OS segue o desenho do projeto. Cada peça vira uma entrada de `src/structure.hpp` com estado (`ok`, `atencao`, `falha` ou `sem-sensor`):
+
+```
+[cabos de eletricidade principais  - / +] --> [cérebro / computador principal]
+[visor / câmera] == cabos de transmissão de dados ==> [cérebro / computador principal]
+[casco protetor] envolve o cérebro
+```
+
+| Peça do desenho | O que o OS verifica |
+|---|---|
+| **Cabos de eletricidade principais (− e +)** | Aviso de tensão baixa do firmware do Pi (`get_throttled` ou hwmon `rpi_volt`). Sem esse sensor: `sem-sensor`. Caminho alternativo: `THROTTLED_FILE`. |
+| **Cérebro / computador principal** | Temperatura da CPU, carga e tempo ligado. Quente = atenção; crítico = falha. |
+| **Cabos de transmissão de dados (câmera/visor → computador)** | O dispositivo `/dev/video<N>` existe e a câmera entrega imagem. |
+| **Casco protetor** | Sensor de impacto (queda/batida): para os motores e emite 3 bips suaves (~900 Hz, 30 % duty, não ensurdece). Estado `atencao` por 30 s após a queda. Também monitora temperatura interna (rodas paradas e visão reduzida quando esquenta). |
+| **Visor / câmera** | Câmera aberta, rostos na última varredura, se o reconhecimento está ativo. |
+
+Terminal: `structure` (todas as peças), `structure map` (o desenho em texto) e `structure power|brain|datalink|casing|visor` (uma peça). O `status` mostra `estrutura=...` e a pergunta falada *“como você está?”* cita só o que não está bem.
+
 ## Novidades da 2.0.0 (robô autônomo)
 
 | Capacidade | Como funciona |
@@ -26,10 +46,10 @@ Configuração: `ilrdos-robot.txt` (pinos, PC, limites) e `ilrdos-iot.txt` (disp
 - `SEND_NAMES_TO_LLM=0` impede que os nomes cheguem ao Ollama.
 
 ### Segurança do movimento
-Todo movimento tem prazo (máx. 3 s) e para sozinho se o daemon/rede cair; velocidade limitada (`MOTOR_MAX_SPEED`, padrão 60%); ré mais curta e lenta (sem sensor traseiro); para a frente o sonar para o robô abaixo de `SONAR_STOP_CM` e **sonar sem leitura = não anda**; passeio autônomo só existe com sonar; `pare`/`stop` vencem tudo; calor crítico para as rodas. Fala é tratada como dado: o modelo de linguagem só consegue ações da lista permitida, com os mesmos limites. **Teste primeiro com as rodas no ar** e mantenha um interruptor físico de bateria à mão. O sonar HC-SR04 usa 5 V: ligue o ECHO ao Pi por divisor de tensão (ex.: 1 kΩ + 2 kΩ) para não queimar o GPIO.
+Todo movimento tem prazo (máx. 3 s) e para sozinho se o daemon/rede cair; velocidade limitada (`MOTOR_MAX_SPEED`, padrão 60%); ré mais curta e lenta (sem sensor traseiro); para a frente o sonar para o robô abaixo de `SONAR_STOP_CM` e **sonar sem leitura = não anda**; passeio autônomo só existe com sonar; `pare`/`stop` vencem tudo; calor crítico para as rodas; **queda detectada pelo sensor do casco para os motores imediatamente** e emite alerta sonoro suave (3 × 220 ms a ~900 Hz, intervalo de 5 s entre alertas). Fala é tratada como dado: o modelo de linguagem só consegue ações da lista permitida, com os mesmos limites. **Teste primeiro com as rodas no ar** e mantenha um interruptor físico de bateria à mão. O sonar HC-SR04 usa 5 V: ligue o ECHO ao Pi por divisor de tensão (ex.: 1 kΩ + 2 kΩ) para não queimar o GPIO.
 
 ### Comandos novos do terminal
-`face list|who|enroll <nome>|forget <nome|all>|cancel`, `move forward|back|left|right [ms] [vel]`, `turn left|right [graus]`, `stop`, `iot list|<disp> on|off|toggle`, `say <texto>`, `hear <texto>` (simula uma fala ouvida), `voice status`, `autonomy motion off|track|roam`.
+`face list|who|enroll <nome>|forget <nome|all>|cancel`, `move forward|back|left|right [ms] [vel]`, `turn left|right [graus]`, `stop`, `iot list|<disp> on|off|toggle`, `say <texto>`, `hear <texto>` (simula uma fala ouvida), `voice status`, `structure [map|power|brain|datalink|casing|visor]`, `impact` (estado do sensor de queda), `impact test` (dispara alerta manualmente), `autonomy motion off|track|roam`.
 
 ### Teste sem hardware
 `tests/sim-test.sh` sobe o daemon em `--simulate` e exercita conversa, movimento, sonar, IoT, regras, cadastro/reconhecimento de rosto e rastreamento.

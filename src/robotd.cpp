@@ -14,15 +14,17 @@
 
 #include "autonomy.hpp"
 #include "conversation.hpp"
+#include "impact.hpp"
 #include "iot.hpp"
 #include "motors.hpp"
+#include "structure.hpp"
 
 using namespace ilrdos;
 
 namespace {
 
 constexpr char kName[] = "ILrDOS";
-constexpr char kVersion[] = "2.0.0";
+constexpr char kVersion[] = "2.1.0";
 constexpr int kDefaultPort = 4317;
 constexpr int kMaxLine = 512;
 constexpr int kClientTimeoutSeconds = 20;
@@ -156,9 +158,11 @@ struct Services {
     VisionSystem& vision;
     Autonomy& autonomy;
     DriveSystem& drive;
+    ImpactSensor& impact;
     IotHub& iot;
     FaceStore& faces;
     Conversation& conversation;
+    RobotStructure& structure;
 };
 
 std::string oneLine(std::string text) {
@@ -218,7 +222,7 @@ std::string commandReply(const std::string& raw, Services& s) {
         return "Comandos: help | status | eye idle|listen|think|speak|alert|off | vision status|scan | "
                "face list|who|enroll <nome>|forget <nome|all>|cancel | move forward|back|left|right [ms] [vel] | "
                "turn left|right [graus] | stop | iot list|<dispositivo> on|off|toggle | say <texto> | hear <texto> | "
-               "voice status | autonomy on|off|status|motion off|track|roam | exit. "
+               "voice status | structure [map|power|brain|datalink|casing|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
                "O terminal controla somente funções autorizadas do robô.";
     }
     if (command == "status") {
@@ -228,12 +232,29 @@ std::string commandReply(const std::string& raw, Services& s) {
               << " | autonomia=" << (s.autonomy.enabled() ? "on" : "off")
               << " | " << s.drive.status()
               << " | rostos=" << s.faces.names().size()
+              << " | " << s.structure.summary()
               << " | ligado=" << s.robot.uptimeSeconds() << "s";
         return reply.str();
     }
     if (command == "vision status") return s.vision.status();
     if (command == "vision scan") { s.vision.scan(); return s.vision.status(); }
     if (command == "voice status") return s.conversation.status();
+    if (!w.empty() && w[0] == "structure") {
+        if (w.size() == 1) return s.structure.report();
+        if (w.size() == 2 && w[1] == "map") return RobotStructure::map();
+        if (w.size() == 2) {
+            const std::string part = s.structure.describe(w[1]);
+            if (!part.empty()) return part;
+        }
+        return "Use: structure [map|power|brain|datalink|casing|visor]";
+    }
+    if (!w.empty() && w[0] == "impact") {
+        if (w.size() == 2 && w[1] == "test") {
+            s.impact.triggerAlert();
+            return "Alerta de impacto disparado (teste).";
+        }
+        return s.impact.status();
+    }
     if (command == "autonomy status") return s.autonomy.status();
     if (command == "autonomy on") { s.autonomy.setEnabled(true); return "Autonomia ligada."; }
     if (command == "autonomy off") { s.autonomy.setEnabled(false); return "Autonomia desligada."; }
@@ -355,6 +376,15 @@ int runServer(const Options& o) {
     }
     DriveSystem drive(o.gpioChip, dc, o.simulate);
 
+    // Sensor de impacto do casco protetor
+    ImpactSensor::Config ic;
+    ic.sensorPin   = pinSetting(cfg, "IMPACT_SENSOR_PIN");
+    ic.buzzerPin   = pinSetting(cfg, "IMPACT_BUZZER_PIN");
+    ic.buzzerFreqHz = cfg.integer("IMPACT_BUZZER_FREQ_HZ", 900, 200, 3000);
+    ImpactSensor impact(o.gpioChip, ic, o.simulate);
+    // Queda detectada → para os motores imediatamente, antes de bipar.
+    impact.onImpact = [&] { drive.stop("impacto"); };
+
     // IoT
     IotHub iot(cfg.str("IOT_CONFIG", "/boot/ilrdos-iot.txt"), o.gpioChip, o.simulate);
     std::cout << "[iot] " << iot.load() << '\n';
@@ -367,6 +397,7 @@ int runServer(const Options& o) {
     LlmClient llm(pc, cfg.str("OLLAMA_MODEL", "qwen2.5:7b-instruct"));
 
     Autonomy* autonomyPtr = nullptr;   // criada depois da conversa; as ações abaixo só rodam com ela pronta
+    RobotStructure* structurePtr = nullptr;
     Actuators act;
     act.move = [&](const std::string& dir, int speed, int ms) {
         bool ok = false;
@@ -384,7 +415,10 @@ int runServer(const Options& o) {
     act.knownNames = [&] { return faces.names(); };
     act.startEnroll = [&](const std::string& n) { return vision.startEnroll(n); };
     act.forget = [&](const std::string& n) { return faces.forget(n); };
-    act.selfStatus = [&] { return autonomyPtr ? autonomyPtr->selfStatus() : std::string("Estou iniciando."); };
+    act.selfStatus = [&] {
+        if (!autonomyPtr) return std::string("Estou iniciando.");
+        return autonomyPtr->selfStatus() + (structurePtr ? " " + structurePtr->speech() : std::string());
+    };
     act.distanceCm = [&] { return drive.distanceCm(); };
     act.canMove = [&] { return drive.available(); };
     act.setEye = [&](const std::string& st) { robot.setAutoState(st); };
@@ -425,7 +459,30 @@ int runServer(const Options& o) {
     Autonomy autonomy(robot, vision, hooks, autonomyOn, o.scanInterval, motion, cfg.flag("TRACK_INVERT", false));
     autonomyPtr = &autonomy;
 
-    Services services{robot, vision, autonomy, drive, iot, faces, conversation};
+    // Estrutura física (desenho do projeto): energia, cérebro, cabos de dados, casco e visor.
+    RobotStructure::Config sc;
+    sc.cameraIndex = o.cameraIndex;
+    sc.simulate = o.simulate;
+#ifdef ILRDOS_HAVE_OPENCV
+    sc.visionCompiled = true;
+#endif
+    sc.throttledFile = cfg.str("THROTTLED_FILE");
+    StructureProbes sp;
+    sp.health = [&] { return autonomy.health(); };
+    sp.uptimeSeconds = [&] { return robot.uptimeSeconds(); };
+    sp.lastFaces = [&] { return vision.lastFaces(); };
+    sp.recognitionAvailable = [&] { return vision.recognitionAvailable(); };
+    sp.motorsActive = [&] { return drive.available(); };
+    if (impact.available()) {
+        sp.recentImpact       = [&] { return impact.recentImpact(); };
+        sp.secondsSinceImpact = [&] { return impact.secondsSinceImpact(); };
+        sp.impactCount        = [&] { return impact.impactCount(); };
+    }
+    RobotStructure structure(sc, sp);
+    structurePtr = &structure;
+    std::cout << "[estrutura] " << structure.summary() << " | " << RobotStructure::map() << '\n';
+
+    Services services{robot, vision, autonomy, drive, impact, iot, faces, conversation, structure};
     FailureTracker failures;
 
     addrinfo hints{};
