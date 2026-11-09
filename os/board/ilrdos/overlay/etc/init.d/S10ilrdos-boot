@@ -1,0 +1,32 @@
+#!/bin/sh
+# ILrDOS: monta a partição de boot (FAT) e cria o token na primeira inicialização.
+BOOT_DEV=/dev/mmcblk0p1
+BOOT=/boot
+TOKEN=$BOOT/ilrdos-token
+
+start() {
+	mkdir -p "$BOOT"
+	if ! grep -q " $BOOT " /proc/mounts; then
+		# fmask=0177: arquivos aparecem como 0600 (o daemon exige isso no token)
+		mount -t vfat -o ro,noatime,uid=0,gid=0,fmask=0177,dmask=0077 \
+			"$BOOT_DEV" "$BOOT" || { echo "ilrdos: falha ao montar $BOOT_DEV"; return 1; }
+	fi
+	modprobe uvcvideo 2>/dev/null
+	modprobe snd-usb-audio 2>/dev/null   # microfone/alto-falante USB
+	if [ ! -s "$TOKEN" ]; then
+		mount -o remount,rw "$BOOT" || return 1
+		( umask 077
+		  cat /proc/sys/kernel/random/uuid /proc/sys/kernel/random/uuid |
+			tr -d '\n-' > "$TOKEN" )
+		sync
+		mount -o remount,ro "$BOOT"
+		echo "ilrdos: token gerado em $TOKEN (partição BOOT do cartão)"
+	fi
+}
+
+case "$1" in
+	start) start ;;
+	stop) ;;
+	restart) start ;;
+	*) echo "Uso: $0 {start|stop|restart}"; exit 1 ;;
+esac

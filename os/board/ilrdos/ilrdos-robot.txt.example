@@ -1,0 +1,35 @@
+# ILrDOS - configuração do robô (edite no PC, partição BOOT do cartão SD). Linhas com # são comentários.
+# Tudo é opcional: o que ficar vazio usa o padrão ou desliga o recurso.
+
+# ---- Conversa (PC da rede local com Ollama; o robô só conversa por regras se ficar vazio)
+PC_IP=
+OLLAMA_MODEL=qwen2.5:7b-instruct
+# TTS_VOICE=glados            # servidor de voz do PC na porta 5050 (sem ele, usa espeak)
+# WAKE_WORDS=ilrdos,ilr dos,ele erre dos,robo
+SEND_NAMES_TO_LLM=1           # 0 = o PC nunca recebe os nomes das pessoas reconhecidas
+
+# ---- Locomoção (pinos BCM). Ponte H tipo L298N/DRV8833. Deixe vazio se não tiver rodas.
+MOTOR_LEFT_FWD=
+MOTOR_LEFT_REV=
+MOTOR_RIGHT_FWD=
+MOTOR_RIGHT_REV=
+# MOTOR_ENABLE_PINS=12,13     # ENA/ENB mantidos em nível alto
+MOTOR_MAX_SPEED=60            # % máximo de velocidade
+TURN_MS_PER_90=700            # calibre: milissegundos para girar 90 graus
+# ---- Sonar HC-SR04 (ECHO precisa de divisor de tensão 5V->3,3V!)
+SONAR_TRIG=
+SONAR_ECHO=
+SONAR_STOP_CM=20
+# off | track (encara quem está na frente) | roam (também se aproxima e passeia) | auto
+MOTION_AUTONOMY=auto
+# TRACK_INVERT=1              # inverta se o robô girar para o lado errado ao seguir um rosto
+
+# ---- Rostos
+# FACE_THRESHOLD=0.40         # sobe = mais rígido (menos confusões), desce = reconhece mais fácil
+
+# ---- Áudio ("auto" escolhe a placa USB)
+# AUDIO_IN=auto
+# AUDIO_OUT=auto
+
+# ---- Reconhecimento de fala (Pi OS: baixe o modelo Vosk e aponte aqui)
+# VOSK_MODEL=/usr/share/ilrdos/models/vosk-pt

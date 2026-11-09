@@ -1,0 +1,2 @@
+source "$BR2_EXTERNAL_ILRDOS_PATH/package/ilrdos/Config.in"
+source "$BR2_EXTERNAL_ILRDOS_PATH/package/ilrdos-vosk/Config.in"

@@ -1,0 +1,5 @@
+# ILrDOS - configuração de rede (edite no Windows/Mac/Linux, partição BOOT do cartão SD)
+# Sem aspas. Rede 2,4 GHz (o Pi Zero 2 W não usa 5 GHz).
+WIFI_SSID=
+WIFI_PASS=
+WIFI_COUNTRY=BR

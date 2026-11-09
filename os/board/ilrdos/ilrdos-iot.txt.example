@@ -1,0 +1,22 @@
+# ILrDOS - dispositivos IoT (partição BOOT). O robô SÓ controla o que estiver declarado aqui.
+# Endereços precisam ser da rede local. Valores com espaço: use %20.
+#
+# device <nome> http  on=<URL> off=<URL> [method=POST on_body=.. off_body=.. header=Nome:valor] [alias=luz,lampada]
+# device <nome> mqtt  host=<IP> topic=<tópico> [port=1883] [on_payload=ON off_payload=OFF user= pass=] [alias=..]
+# device <nome> gpio  pin=<BCM> [active=high|low] [alias=..]
+# sensitive=1 => fechadura/portão/fogão: só o terminal autenticado controla (nunca voz, IA, regras ou rosto).
+#
+# Exemplos (descomente e ajuste):
+# device luz_sala http on=http://192.168.1.50/cm?cmnd=Power%20On off=http://192.168.1.50/cm?cmnd=Power%20Off alias=luz,lampada,luz_da_sala
+# device ventilador mqtt host=192.168.1.10 topic=casa/ventilador/set alias=ventilador
+# device rele_mesa gpio pin=17 alias=abajur
+# device portao http on=http://192.168.1.60/abrir off=http://192.168.1.60/fechar sensitive=1
+#
+# Regras automáticas (o robô decide sozinho):
+#   rule arrive any -> luz_sala on             alguém apareceu na câmera
+#   rule arrive known -> luz_sala on           uma pessoa conhecida foi reconhecida (known:Maria = só a Maria)
+#   rule arrive unknown -> luz_sala on         um desconhecido foi cumprimentado
+#   rule empty -> luz_sala off                 todos saíram de vista
+#   rule hot -> ventilador on / rule cool -> ventilador off   CPU do robô quente / esfriou
+# rule arrive any -> luz_sala on
+# rule empty -> luz_sala off

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Iniciado pelo init (respawn). Logs vão para o buffer do kernel: dmesg | grep ilrdosd
+/usr/sbin/ilrdosd --bind 0.0.0.0 --port 4317 \
+	--token-file /boot/ilrdos-token --config /boot/ilrdos-robot.txt \
+	--gpio-chip /dev/gpiochip0 --eye-pin 18 --alert-pin 23 \
+	--vision-model /usr/share/ilrdos/models/face_detection_yunet_2023mar.onnx \
+	--camera-index 0 >/dev/kmsg 2>&1
+sleep 3

@@ -1,0 +1,11 @@
+config BR2_PACKAGE_ILRDOS_VOSK
+	bool "ilrdos-vosk"
+	depends on BR2_aarch64
+	depends on BR2_INSTALL_LIBSTDCPP
+	depends on BR2_TOOLCHAIN_USES_GLIBC
+	help
+	  libvosk pré-compilada (aarch64) e modelo Vosk pequeno de português
+	  brasileiro, baixados do projeto Vosk durante a build.
+
+comment "ilrdos-vosk needs aarch64, glibc and a toolchain w/ C++"
+	depends on !BR2_aarch64 || !BR2_INSTALL_LIBSTDCPP || !BR2_TOOLCHAIN_USES_GLIBC

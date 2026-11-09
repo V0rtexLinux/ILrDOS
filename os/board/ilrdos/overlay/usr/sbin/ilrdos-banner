@@ -1,0 +1,35 @@
+#!/bin/sh
+# Console HDMI do ILrDOS (vermelho sobre preto). Não há login: o robô não tem shell.
+# Para depurar com teclado, adicione "ilrdos.debug" ao cmdline.txt da partição BOOT.
+if grep -q 'ilrdos.debug' /proc/cmdline; then
+	printf '\033[0m'
+	exec /bin/sh
+fi
+
+ip_addr() {
+	ip -4 -o addr show dev wlan0 2>/dev/null | awk '{print $4}' | head -n 1
+}
+
+while :; do
+	IP=$(ip_addr)
+	if pidof ilrdosd >/dev/null 2>&1; then DAEMON="ativo"; else DAEMON="parado"; fi
+	printf '\033[?25l\033[40;31m\033[2J\033[H'
+	cat <<BANNER
+
+   ___ _      ___  ___  ___
+  |_ _| |    | _ \|   \/ __|
+   | || |__  |   /| |) \__ \\
+  |___|____| |_|_\|___/|___/
+
+  Intelligent Lifeform robot Disk Operating System
+  versão $(cat /etc/ilrdos-release 2>/dev/null)
+
+  rede:    ${IP:-sem conexão (confira ilrdos.txt na partição BOOT)}
+  console: porta 4317 (aplicativo ILrDOS-Terminal)
+  daemon:  $DAEMON
+  token:   arquivo ilrdos-token na partição BOOT
+  config:  ilrdos-robot.txt e ilrdos-iot.txt (BOOT)
+
+BANNER
+	sleep 10
+done

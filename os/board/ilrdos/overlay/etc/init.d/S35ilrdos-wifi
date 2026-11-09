@@ -1,0 +1,42 @@
+#!/bin/sh
+# ILrDOS: conecta ao Wi-Fi usando /boot/ilrdos.txt (WIFI_SSID, WIFI_PASS, WIFI_COUNTRY).
+CONF=/boot/ilrdos.txt
+RUN=/run/ilrdos
+
+get() { sed -n "s/^$1=//p" "$CONF" 2>/dev/null | tr -d '\r' | head -n 1; }
+
+connect() {
+	modprobe brcmfmac 2>/dev/null
+	i=0
+	while [ ! -d /sys/class/net/wlan0 ] && [ "$i" -lt 20 ]; do sleep 1; i=$((i + 1)); done
+	[ -d /sys/class/net/wlan0 ] || { echo "ilrdos-wifi: wlan0 não apareceu"; return 1; }
+
+	SSID=$(get WIFI_SSID); PASS=$(get WIFI_PASS); COUNTRY=$(get WIFI_COUNTRY)
+	[ -n "$SSID" ] || { echo "ilrdos-wifi: defina WIFI_SSID em ilrdos.txt (partição BOOT)"; return 0; }
+
+	mkdir -p "$RUN"; chmod 700 "$RUN"
+	( umask 077
+	  {
+		echo "ctrl_interface=$RUN/wpa"
+		echo "country=${COUNTRY:-BR}"
+		if [ -n "$PASS" ]; then
+			wpa_passphrase "$SSID" "$PASS" | sed '/#psk/d' || exit 1
+		else
+			printf 'network={\n\tssid="%s"\n\tkey_mgmt=NONE\n}\n' "$SSID"
+		fi
+	  } > "$RUN/wpa.conf" ) || { echo "ilrdos-wifi: senha inválida (8 a 63 caracteres)"; return 1; }
+
+	ip link set wlan0 up 2>/dev/null || ifconfig wlan0 up
+	wpa_supplicant -B -i wlan0 -c "$RUN/wpa.conf" -P "$RUN/wpa.pid"
+	udhcpc -i wlan0 -b -x hostname:ilrdos -p "$RUN/udhcpc.pid" >/dev/null 2>&1
+}
+
+case "$1" in
+	start) connect & ;;   # em segundo plano: o boot não espera a rede
+	stop)
+		[ -f "$RUN/udhcpc.pid" ] && kill "$(cat "$RUN/udhcpc.pid")" 2>/dev/null
+		[ -f "$RUN/wpa.pid" ] && kill "$(cat "$RUN/wpa.pid")" 2>/dev/null
+		;;
+	restart) "$0" stop; "$0" start ;;
+	*) echo "Uso: $0 {start|stop|restart}"; exit 1 ;;
+esac
