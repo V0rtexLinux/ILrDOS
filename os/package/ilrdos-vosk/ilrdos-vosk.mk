@@ -11,10 +11,9 @@ ILRDOS_VOSK_EXTRA_DOWNLOADS = https://alphacephei.com/vosk/models/vosk-model-sma
 ILRDOS_VOSK_LICENSE = Apache-2.0
 ILRDOS_VOSK_INSTALL_STAGING = YES
 
-# O arquivo upstream é ZIP (não tar). O generic-package precisa de extração explícita.
 define ILRDOS_VOSK_EXTRACT_CMDS
 	mkdir -p $(@D)
-	unzip -oq $(DL_DIR)/$(ILRDOS_VOSK_SOURCE) -d $(@D)
+	unzip -oq $(DL_DIR)/ilrdos-vosk/$(ILRDOS_VOSK_SOURCE) -d $(@D)
 endef
 
 define ILRDOS_VOSK_INSTALL_STAGING_CMDS
