@@ -1,0 +1,137 @@
+name: Build ILrDOS OS image
+
+# Gera a imagem de cartão SD (Buildroot) do ILrDOS para Raspberry Pi Zero 2 W.
+# A primeira build leva horas; o cache de downloads/ccache acelera as seguintes.
+on:
+  workflow_dispatch:
+    inputs:
+      buildroot_version:
+        description: "Versão do Buildroot (vazio = padrão do os/build.sh)"
+        required: false
+        default: ""
+      buildroot_sha256:
+        description: "SHA-256 do tarball do Buildroot (opcional, recomendado)"
+        required: false
+        default: ""
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-os-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  ILRDOS_WORK: /mnt/ilrdos-work
+  CCACHE_DIR: /mnt/ilrdos-ccache
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355          # limite de job do GitHub: 360 min
+    permissions:
+      contents: write             # necessário para anexar a imagem à Release de uma tag
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Localizar o projeto (pasta que contém os/build.sh)
+        id: proj
+        run: |
+          script="$(find . -maxdepth 3 -path '*/os/build.sh' -not -path './.git/*' | head -n1)"
+          [ -n "$script" ] || { echo "os/build.sh não encontrado"; exit 1; }
+          root="$(cd "$(dirname "$script")/.." && pwd)"
+          echo "root=$root" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat "$root/VERSION" 2>/dev/null || echo 1.0.0)" >> "$GITHUB_OUTPUT"
+          echo "Projeto em: $root"
+
+      - name: Liberar espaço em disco e preparar diretórios
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force >/dev/null 2>&1 || true
+          sudo mkdir -p "$ILRDOS_WORK" "$CCACHE_DIR"
+          sudo chown -R "$USER:$(id -gn)" "$ILRDOS_WORK" "$CCACHE_DIR"
+          df -h / /mnt
+
+      - name: Instalar dependências do Buildroot
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential curl xz-utils unzip rsync cpio bc file patch perl \
+            python3 libncurses-dev git wget ca-certificates
+
+      - name: Restaurar cache (downloads + ccache)
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            /mnt/ilrdos-work/dl
+            /mnt/ilrdos-ccache
+          key: ilrdos-os-${{ github.run_id }}
+          restore-keys: |
+            ilrdos-os-
+
+      - name: Ativar ccache no Buildroot (só no CI)
+        working-directory: ${{ steps.proj.outputs.root }}
+        run: |
+          {
+            echo
+            echo "# CI: acelera rebuilds"
+            echo "BR2_CCACHE=y"
+            echo "BR2_CCACHE_DIR=\"$CCACHE_DIR\""
+          } >> os/configs/ilrdos_pizero2w.fragment
+
+      - name: Build da imagem
+        id: build
+        timeout-minutes: 330      # termina antes do job, para o cache ainda ser salvo
+        working-directory: ${{ steps.proj.outputs.root }}
+        env:
+          BUILDROOT_VERSION: ${{ inputs.buildroot_version }}
+          BUILDROOT_SHA256: ${{ inputs.buildroot_sha256 }}
+        run: |
+          [ -n "$BUILDROOT_VERSION" ] || unset BUILDROOT_VERSION
+          [ -n "$BUILDROOT_SHA256" ]  || unset BUILDROOT_SHA256
+          chmod +x os/build.sh os/merge-defconfig.sh scripts/*.sh
+          os/build.sh 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      # Salva o cache mesmo se a build estourar o tempo: a próxima execução continua de onde parou.
+      - name: Salvar cache
+        if: always() && steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            /mnt/ilrdos-work/dl
+            /mnt/ilrdos-ccache
+          key: ilrdos-os-${{ github.run_id }}
+
+      - name: Enviar imagem como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: ILrDOS-${{ steps.proj.outputs.version }}-pizero2w
+          path: |
+            /mnt/ilrdos-work/dist/*.img.xz
+            /mnt/ilrdos-work/dist/*.sha256
+          if-no-files-found: error
+          compression-level: 0    # já é .xz
+          retention-days: 30
+
+      - name: Publicar na Release (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "ILrDOS $TAG" --generate-notes
+          gh release upload "$TAG" /mnt/ilrdos-work/dist/*.img.xz /mnt/ilrdos-work/dist/*.sha256 --clobber
+
+      - name: Enviar log da build (em caso de falha)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: ${{ runner.temp }}/build.log
+          if-no-files-found: ignore
+          retention-days: 7
