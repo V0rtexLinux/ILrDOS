@@ -16,6 +16,12 @@ MOTOR_RIGHT_REV=
 # MOTOR_ENABLE_PINS=12,13     # ENA/ENB mantidos em nível alto
 MOTOR_MAX_SPEED=60            # % máximo de velocidade
 TURN_MS_PER_90=700            # calibre: milissegundos para girar 90 graus
+# ---- Movimento conforme a estrutura do desenho (cabos de energia -/+ e de dados do visor até o cérebro)
+MAX_TWIST_DEG=270             # giro acumulado máximo para cada lado antes de esticar os cabos (use `untwist`)
+# MOTOR_RAMP_MS=300           # partida/parada suaves (0 = sem rampa)
+# REVERSE_SETTLE_MS=250       # pausa com rodas paradas ao inverter o sentido
+# IMPACT_LOCKOUT_MS=4000      # sem mover por alguns segundos depois de queda/batida no casco
+# TWIST_FILE=/var/lib/ilrdos/twist.txt   # guarda a torção dos cabos entre reinícios
 # ---- Sonar HC-SR04 (ECHO precisa de divisor de tensão 5V->3,3V!)
 SONAR_TRIG=
 SONAR_ECHO=

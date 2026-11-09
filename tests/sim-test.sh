@@ -36,6 +36,7 @@ check() { # check "descrição" "texto esperado" "saída"
 
 out=$(ilr "status" "iot list" "iot luz_sala on" "iot porta on" "hear acende a luz da sala" "hear liga a porta" "hear desliga o ventilador")
 check "status com motores simulados" "motores=simulados" "$out"
+check "status mostra torção dos cabos" "torcao-cabos=" "$out"
 check "lista dispositivos" "porta[?](sensível: só terminal)" "$out"
 check "terminal liga luz" "luz_sala: on." "$out"
 check "terminal controla dispositivo sensível" "porta: on." "$out"
@@ -53,6 +54,11 @@ check "sonar bloqueia avanço (voz)" "Obstáculo a 8 cm" "$out"
 check "sonar bloqueia avanço (terminal)" "Obstáculo" "$out"
 check "ré limitada, mas permitida" "Movendo para trás a 40% por 1000 ms" "$out"
 echo 200 >"$TMP/sonar"
+
+# --- estrutura: limite de torção dos cabos (energia -/+ e dados do visor) e `untwist`
+out=$(ilr "turn left 180" "@3" "turn left 180" "untwist" "@4")
+check "limite de torção recusa giro além dos cabos" "Cabos já torcidos" "$out"
+check "untwist desfaz a torção" "Desfazendo a torção" "$out"
 
 # --- rostos: cadastro com consentimento falado
 echo "Maria 0.5 0.3" >"$TMP/faces"; sleep 3

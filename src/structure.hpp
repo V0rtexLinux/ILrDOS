@@ -58,6 +58,9 @@ struct StructureProbes {
     std::function<bool()> recentImpact;         // queda/batida detectada recentemente
     std::function<long()> secondsSinceImpact;   // segundos desde a última queda (-1 = nunca)
     std::function<int()>  impactCount;          // total de quedas nesta sessão
+    // Torção estimada dos cabos (energia -/+ e dados do visor) e o limite do movimento; nullptr = sem controle de torção.
+    std::function<double()> cableTwistDeg;
+    std::function<int()> cableTwistLimitDeg;
 };
 
 class RobotStructure {
@@ -82,7 +85,21 @@ public:
     // As cinco peças do desenho, sempre nesta ordem.
     std::vector<Part> parts() const {
         const HealthSnapshot health = probes_.health ? probes_.health() : HealthSnapshot{};
-        return {power(), brain(health), dataLink(health), casing(health), visor(health)};
+        Part pw = power();
+        Part dl = dataLink(health);
+        applyTwist(pw);   // os cabos de energia e os de dados correm juntos pelo corpo: torcem juntos
+        applyTwist(dl);
+        return {pw, brain(health), dl, casing(health), visor(health)};
+    }
+
+    // Motivo para o robô NÃO se mover agora (vazio = pode mover): tensão baixa nos cabos de energia ou
+    // computador principal em calor crítico. Mover assim derruba a alimentação ou trava o sistema.
+    std::string motionBlockReason() const {
+        const Part pw = power();
+        if (pw.state == PartState::Fail) return "Não me movo: " + pw.detail + ".";
+        const HealthSnapshot health = probes_.health ? probes_.health() : HealthSnapshot{};
+        if (health.thermal == "critico") return "Não me movo: computador principal em temperatura crítica.";
+        return {};
     }
 
     // Pior estado entre as peças (Unknown não conta como problema).
@@ -145,6 +162,20 @@ public:
     }
 
 private:
+    // Cabos torcidos além de 80% do limite do movimento: pede atenção (o robô só gira para o lado de volta).
+    void applyTwist(Part& part) const {
+        if (!probes_.cableTwistDeg || !probes_.cableTwistLimitDeg) return;
+        const double twist = probes_.cableTwistDeg();
+        const int limit = std::max(1, probes_.cableTwistLimitDeg());
+        const int shown = static_cast<int>(std::lround(twist));
+        part.detail += "; torção dos cabos " + std::string(shown > 0 ? "+" : "") + std::to_string(shown) + "°/" +
+                       std::to_string(limit) + "°";
+        if (std::abs(twist) >= 0.8 * limit && part.state == PartState::Ok) {
+            part.state = PartState::Warn;
+            part.detail += " (perto do limite; use `untwist`)";
+        }
+    }
+
     static const char* spokenName(PartId id) {
         switch (id) {
             case PartId::Power: return "os cabos de energia";

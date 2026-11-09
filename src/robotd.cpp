@@ -221,7 +221,7 @@ std::string commandReply(const std::string& raw, Services& s) {
     if (command == "help") {
         return "Comandos: help | status | eye idle|listen|think|speak|alert|off | vision status|scan | "
                "face list|who|enroll <nome>|forget <nome|all>|cancel | move forward|back|left|right [ms] [vel] | "
-               "turn left|right [graus] | stop | iot list|<dispositivo> on|off|toggle | say <texto> | hear <texto> | "
+               "turn left|right [graus] | untwist [zero] | stop | iot list|<dispositivo> on|off|toggle | say <texto> | hear <texto> | "
                "voice status | structure [map|power|brain|datalink|casing|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
                "O terminal controla somente funções autorizadas do robô.";
     }
@@ -273,6 +273,11 @@ std::string commandReply(const std::string& raw, Services& s) {
         if (!ok) return "Use: move forward|back|left|right [ms] [velocidade%]";
         s.autonomy.noteExternalMotion();
         return s.drive.move(dir, toInt(w, 3, 45), toInt(w, 2, 1000));
+    }
+    if (!w.empty() && w[0] == "untwist") {
+        if (w.size() == 2 && w[1] == "zero") return s.drive.resetTwist();
+        s.autonomy.noteExternalMotion();
+        return s.drive.untwist();
     }
     if (w.size() >= 2 && w[0] == "turn" && (w[1] == "left" || w[1] == "right")) {
         s.autonomy.noteExternalMotion();
@@ -371,6 +376,12 @@ int runServer(const Options& o) {
     dc.maxSpeed = cfg.integer("MOTOR_MAX_SPEED", 60, 20, 100);
     dc.sonarStopCm = cfg.integer("SONAR_STOP_CM", 20, 10, 100);
     dc.turnMsPer90 = cfg.integer("TURN_MS_PER_90", 700, 100, 5000);
+    // Envelope de movimento da estrutura (cabos, rampa, inversão, impacto) — ver motors.hpp
+    dc.maxTwistDeg = cfg.integer("MAX_TWIST_DEG", 270, 45, 720);
+    dc.rampMs = cfg.integer("MOTOR_RAMP_MS", 300, 0, 1000);
+    dc.reverseSettleMs = cfg.integer("REVERSE_SETTLE_MS", 250, 0, 1000);
+    dc.impactLockoutMs = cfg.integer("IMPACT_LOCKOUT_MS", 4000, 0, 30000);
+    if (!o.simulate) dc.twistFile = cfg.str("TWIST_FILE", osImage ? "/boot/ilrdos-twist.txt" : "/var/lib/ilrdos/twist.txt");
     if (o.simulate && std::getenv("ILRDOS_SIM_MOTORS") != nullptr) {   // pinos fictícios para testar no PC
         dc.leftFwd = 1; dc.leftRev = 2; dc.rightFwd = 3; dc.rightRev = 4; dc.trig = 5; dc.echo = 6;
     }
@@ -473,6 +484,10 @@ int runServer(const Options& o) {
     sp.lastFaces = [&] { return vision.lastFaces(); };
     sp.recognitionAvailable = [&] { return vision.recognitionAvailable(); };
     sp.motorsActive = [&] { return drive.available(); };
+    if (drive.available()) {
+        sp.cableTwistDeg = [&] { return drive.twistDeg(); };
+        sp.cableTwistLimitDeg = [&] { return drive.maxTwistDeg(); };
+    }
     if (impact.available()) {
         sp.recentImpact       = [&] { return impact.recentImpact(); };
         sp.secondsSinceImpact = [&] { return impact.secondsSinceImpact(); };
@@ -480,6 +495,7 @@ int runServer(const Options& o) {
     }
     RobotStructure structure(sc, sp);
     structurePtr = &structure;
+    drive.setGuard([&] { return structure.motionBlockReason(); });   // tensão baixa / calor crítico = não anda
     std::cout << "[estrutura] " << structure.summary() << " | " << RobotStructure::map() << '\n';
 
     Services services{robot, vision, autonomy, drive, impact, iot, faces, conversation, structure};
