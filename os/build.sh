@@ -20,6 +20,11 @@ for cmd in curl make gcc g++ tar xz unzip rsync cpio bc file patch perl python3 
 done
 
 mkdir -p "$WORK/dl" "$WORK/dist"
+
+# Zips/checkouts sem bit de execução (ex.: Windows) causam "Permission denied" (Error 126)
+# no post-build/pre-image. Garante +x em todos os scripts usados pelo Buildroot.
+chmod +x "$OS_DIR"/merge-defconfig.sh "$OS_DIR"/board/ilrdos/post-build.sh \
+         "$OS_DIR"/board/ilrdos/pre-image.sh "$ROOT"/scripts/*.sh
 "$ROOT/scripts/fetch-models.sh"   # SFace (reconhecimento de rostos)
 BR="$WORK/buildroot-$BUILDROOT_VERSION"
 OUT="$WORK/output"
