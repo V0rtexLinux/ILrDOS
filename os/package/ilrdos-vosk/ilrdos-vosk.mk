@@ -11,9 +11,16 @@ ILRDOS_VOSK_EXTRA_DOWNLOADS = https://alphacephei.com/vosk/models/vosk-model-sma
 ILRDOS_VOSK_LICENSE = Apache-2.0
 ILRDOS_VOSK_INSTALL_STAGING = YES
 
+# O zip oficial traz tudo dentro de vosk-linux-aarch64-<versão>/ ; o Buildroot
+# espera os arquivos direto em $(@D), então extraímos e "achatamos" o diretório.
 define ILRDOS_VOSK_EXTRACT_CMDS
-	mkdir -p $(@D)
-	unzip -oq $(DL_DIR)/ilrdos-vosk/$(ILRDOS_VOSK_SOURCE) -d $(@D)
+	rm -rf $(@D)/.vosk-tmp
+	mkdir -p $(@D)/.vosk-tmp
+	unzip -oq $(DL_DIR)/ilrdos-vosk/$(ILRDOS_VOSK_SOURCE) -d $(@D)/.vosk-tmp
+	src=$$(dirname "$$(find $(@D)/.vosk-tmp -name vosk_api.h | head -n1)") && \
+		test -f "$$src/vosk_api.h" -a -f "$$src/libvosk.so" && \
+		cp -a "$$src"/. $(@D)/
+	rm -rf $(@D)/.vosk-tmp
 endef
 
 define ILRDOS_VOSK_INSTALL_STAGING_CMDS
