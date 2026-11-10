@@ -2,6 +2,11 @@ name: Build ILrDOS Clients
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Existing GitHub release tag to upload artifacts to"
+        required: false
+        type: string
   push:
     branches: ["main", "master"]
     paths:
@@ -76,7 +81,7 @@ jobs:
 
   # ── Release: anexa tudo ao tag v* ──────────────────────────────────────────
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     needs: [build-linux, build-windows]
     runs-on: ubuntu-24.04
     permissions:
@@ -102,7 +107,7 @@ jobs:
       - name: Publicar na Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           gh release view "$TAG" > /dev/null 2>&1 \
             || gh release create "$TAG" --title "ILrDOS $TAG" --generate-notes

@@ -13,6 +13,10 @@ on:
         description: "SHA-256 do tarball do Buildroot (opcional, recomendado)"
         required: false
         default: ""
+      release_tag:
+        description: "Tag de uma release existente para anexar a imagem (vazio = não anexar)"
+        required: false
+        type: string
   push:
     tags: ["v*"]
 
@@ -146,10 +150,10 @@ jobs:
           retention-days: 30
 
       - name: Publicar na Release (tags v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "ILrDOS $TAG" --generate-notes
           gh release upload "$TAG" /mnt/ilrdos-work/dist/*.img.xz /mnt/ilrdos-work/dist/*.sha256 --clobber
