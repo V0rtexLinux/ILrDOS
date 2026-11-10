@@ -221,7 +221,7 @@ std::string commandReply(const std::string& raw, Services& s) {
     if (command == "help") {
         return "Comandos: help | status | eye idle|listen|think|speak|alert|off | vision status|scan | "
                "face list|who|enroll <nome>|forget <nome|all>|cancel | move forward|back|left|right [ms] [vel] | "
-               "turn left|right [graus] | untwist [zero] | stop | iot list|<dispositivo> on|off|toggle | say <texto> | hear <texto> | "
+               "turn left|right [graus] | untwist [zero] | stop | iot list|read <nome>|<dispositivo> on|off|toggle | say <texto> | hear <texto> | "
                "voice status | structure [map|power|brain|datalink|casing|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
                "O terminal controla somente funções autorizadas do robô.";
     }
@@ -284,6 +284,7 @@ std::string commandReply(const std::string& raw, Services& s) {
         return s.drive.turnDegrees(w[1] == "left", toInt(w, 2, 90));
     }
     if (command == "iot list") return s.iot.list();
+    if (w.size() == 3 && w[0] == "iot" && w[1] == "read") return s.iot.read(w[2]);
     if (w.size() == 3 && w[0] == "iot") return s.iot.command(w[1], w[2], Origin::Terminal);
     if (w.size() >= 2 && w[0] == "say") { s.conversation.announce(command.substr(4).substr(0, 300)); return "Falando."; }
     if (w.size() >= 2 && w[0] == "hear") return "Resposta: " + s.conversation.hear(command.substr(5).substr(0, 300));
@@ -420,6 +421,9 @@ int runServer(const Options& o) {
     act.turn = [&](bool left, int deg) { if (autonomyPtr) autonomyPtr->noteExternalMotion(); return drive.turnDegrees(left, deg); };
     act.stop = [&] { drive.stop("voz"); };
     act.iot = [&](const std::string& d, const std::string& a) { return iot.command(d, a, Origin::Voice); };
+    act.iotModel = [&](const std::string& d, const std::string& a) { return iot.command(d, a, Origin::Model); };
+    act.iotConfirm = [&] { return iot.confirmPending(); };
+    act.iotRead = [&](const std::string& d) { return iot.read(d); };
     act.devices = [&] { return iot.infos(); };
     act.look = [&] { return vision.recent(1500); };
     act.peek = [&] { return vision.last(); };
@@ -429,6 +433,9 @@ int runServer(const Options& o) {
     act.selfStatus = [&] {
         if (!autonomyPtr) return std::string("Estou iniciando.");
         return autonomyPtr->selfStatus() + (structurePtr ? " " + structurePtr->speech() : std::string());
+    };
+    act.selfAwareness = [&] {
+        return structurePtr ? structurePtr->selfAwareness() : std::string("Ainda estou me montando.");
     };
     act.distanceCm = [&] { return drive.distanceCm(); };
     act.canMove = [&] { return drive.available(); };

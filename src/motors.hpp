@@ -11,7 +11,8 @@
 // pelo corpo até o cérebro/computador principal, protegido pelo casco). Para o robô não travar nem bugar:
 //  6. Orçamento de torção dos cabos: o giro acumulado (esq/dir) é contado e limitado a ±MAX_TWIST_DEG.
 //     No limite o robô só gira para o lado de volta; `untwist` desfaz a torção sozinho.
-//  7. Partida e parada suaves (rampa): sem tranco no visor, nos cabos nem no computador principal.
+//  7. Partida e parada suaves, em curva "smoothstep": o corpo se comporta como a GLaDOS, uma carcaça pendurada
+//     por cabos que balança devagar, sem tranco no visor, nos cabos nem no computador principal.
 //  8. Inversão de sentido só depois de uma pausa (sem "chicote" nas rodas/cabos nem curto na ponte H).
 //  9. Após queda/batida no casco, bloqueia novos movimentos por alguns segundos.
 // 10. Energia dos cabos baixa ou cérebro em calor crítico (guarda da estrutura) = não anda.
@@ -123,6 +124,10 @@ public:
 
     int maxTwistDeg() const { return cfg_.maxTwistDeg; }
 
+    // No desenho o visor fica na ponta de um corpo longo e curvo: ao girar ele age como uma alavanca e chicoteia
+    // o cabo de dados. Por isso os giros usam uma rampa 50% mais longa que a de andar.
+    int turnRampMs() const { return std::min(1000, cfg_.rampMs * 3 / 2); }
+
     // Torção estimada dos cabos em graus (+ = direita/horário, − = esquerda). Estimativa por tempo, sem encoder.
     double twistDeg() const {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -144,7 +149,7 @@ public:
         if (std::abs(twist) < 5.0) return "Cabos já estão alinhados (torção ~0°).";
         const int speed = 40;
         const int ms = std::clamp(static_cast<int>(std::abs(twist) / 90.0 * cfg_.turnMsPer90 * 50.0 / speed) +
-                                  cfg_.rampMs, 100, 3000);
+                                  turnRampMs(), 100, 3000);
         const bool turnLeft = twist > 0;
         const auto result = moveEx(turnLeft ? Dir::Left : Dir::Right, speed, ms);
         if (!result.ok) return result.text;
@@ -160,7 +165,8 @@ public:
         if (const auto why = blockReason()) return {false, *why, 0, 0};
         speed = std::clamp(speed, 20, cfg_.maxSpeed);
         durationMs = std::clamp(durationMs, 100, 3000);
-        if (dir == Dir::Back) { speed = std::min(speed, 40); durationMs = std::min(durationMs, 1500); }
+        // Visor/câmera olham só para a frente: de ré o robô anda "cego", então fica lento e curto.
+        if (dir == Dir::Back) { speed = std::min(speed, 30); durationMs = std::min(durationMs, 1000); }
         if (dir == Dir::Forward) {
             if (sonarConfigured_) {
                 const auto distance = distanceCm();
@@ -180,7 +186,7 @@ public:
                                (sign > 0 ? "direita" : "esquerda") + " (limite " + std::to_string(cfg_.maxTwistDeg) +
                                "°); gire para o outro lado ou use `untwist`.", 0, 0};
             }
-            const int roomMs = static_cast<int>(room / 90.0 * cfg_.turnMsPer90 * 50.0 / speed) + cfg_.rampMs;
+            const int roomMs = static_cast<int>(room / 90.0 * cfg_.turnMsPer90 * 50.0 / speed) + turnRampMs();
             if (roomMs < durationMs) {
                 durationMs = std::max(100, roomMs);
                 clipped = " (reduzido: limite de torção dos cabos)";
@@ -193,7 +199,7 @@ public:
             case Dir::Left: left = -speed; right = speed; break;
             case Dir::Right: left = speed; right = -speed; break;
         }
-        start(left, right, durationMs, rampMs < 0 ? cfg_.rampMs : rampMs);
+        start(left, right, durationMs, rampMs >= 0 ? rampMs : (dir == Dir::Left || dir == Dir::Right) ? turnRampMs() : cfg_.rampMs);
         static const char* names[] = {"frente", "trás", "esquerda", "direita"};
         return {true, std::string("Movendo para ") + names[static_cast<int>(dir)] + " a " + std::to_string(speed) +
                       "% por " + std::to_string(durationMs) + " ms." + clipped, speed, durationMs};
@@ -203,10 +209,10 @@ public:
         degrees = std::clamp(degrees, 10, 180);
         // A rampa suave "come" um pouco do giro; compensa para o ângulo continuar calibrado.
         const int base = std::max(100, cfg_.turnMsPer90 * degrees / 90);
-        const int ms = std::min(base + std::min(cfg_.rampMs, base / 2), 3000);
+        const int ms = std::min(base + std::min(turnRampMs(), base / 2), 3000);
         const auto result = moveEx(left ? Dir::Left : Dir::Right, 50, ms);
         if (!result.ok) return result.text;
-        const int done = std::min(degrees, static_cast<int>(std::lround((result.durationMs - std::min(cfg_.rampMs, base / 2)) *
+        const int done = std::min(degrees, static_cast<int>(std::lround((result.durationMs - std::min(turnRampMs(), base / 2)) *
                                                                          90.0 / cfg_.turnMsPer90)));
         const bool shortened = done < degrees - 5;
         return std::string("Girando ~") + std::to_string(shortened ? std::max(done, 10) : degrees) + "° para a " +
@@ -277,9 +283,12 @@ private:
         const double ramp = rampEffMs_;
         double effective = elapsed;
         if (ramp > 0.0) {
-            effective -= elapsed < ramp ? elapsed - elapsed * elapsed / (2.0 * ramp) : ramp / 2.0;
+            // Área sob a rampa smoothstep S(u)=3u²−2u³: ∫S = u³ − u⁴/2 (vale 1/2 na rampa inteira).
+            const auto area = [](double u) { return u * u * u - u * u * u * u / 2.0; };
+            const double u = std::min(1.0, elapsed / ramp);
+            effective -= elapsed < ramp ? elapsed - ramp * area(u) : ramp / 2.0;   // perda na subida
             const double x = elapsed - (total - ramp);
-            if (x > 0.0) effective -= x * x / (2.0 * ramp);
+            if (x > 0.0) effective -= x - ramp * (0.5 - area(std::max(0.0, 1.0 - x / ramp))) ;  // perda na descida
         }
         const double degrees = std::max(0.0, effective) / cfg_.turnMsPer90 * 90.0 * std::abs(left_) / 50.0;
         return left_ > 0 ? degrees : -degrees;   // esquerda>0, direita<0 = giro para a direita
@@ -387,7 +396,8 @@ private:
             if (rampEffMs_ > 0) {
                 const double sinceStart = std::chrono::duration_cast<std::chrono::microseconds>(now - startedAt_).count() / 1000.0;
                 const double remaining = std::chrono::duration_cast<std::chrono::microseconds>(until_ - now).count() / 1000.0;
-                scale = std::clamp(std::min(sinceStart, remaining) / rampEffMs_, 0.0, 1.0);
+                const double u = std::clamp(std::min(sinceStart, remaining) / rampEffMs_, 0.0, 1.0);
+                scale = u * u * (3.0 - 2.0 * u);   // smoothstep: balanço suave, sem tranco
             }
             const auto duty = [&](int speed) {
                 const double target = std::abs(speed) * scale;

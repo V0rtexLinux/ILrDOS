@@ -10,6 +10,12 @@ cat >"$TMP/iot.txt" <<'CFG'
 device luz_sala http on=http://192.168.1.50/cm?cmnd=Power%20On off=http://192.168.1.50/cm?cmnd=Power%20Off alias=luz,lampada
 device porta http on=http://192.168.1.51/open off=http://192.168.1.51/close sensitive=1 alias=porta
 device ventilador mqtt host=192.168.1.10 topic=casa/ventilador alias=ventilador
+device bomba modbus host=192.168.1.30 unit=1 coil=3 confirm=1 alias=bomba
+sensor temp_caldeira modbus host=192.168.1.30 reg=10 scale=0.1 label=C alias=caldeira
+device celular_joao http on=http://192.168.1.5/on off=http://192.168.1.5/off
+device lampada_ble ble mac=AA:BB:CC:DD:EE:FF handle=0x0012 on_hex=01 off_hex=00 alias=abajur
+sensor janela gpio pin=22 active=low on_text=fechada off_text=aberta alias=janela
+sensor temp_sala w1 id=28-0123456789ab alias=temperatura_da_sala
 rule arrive known:Maria -> ventilador on
 rule empty -> luz_sala off
 rule arrive known -> porta on
@@ -43,6 +49,17 @@ check "terminal controla dispositivo sensível" "porta: on." "$out"
 check "voz liga luz por apelido" "Feito: luz sala ligado." "$out"
 check "voz NÃO controla dispositivo sensível" "sensível" "$(grep -F 'Resposta: ' <<<"$out" | sed -n 2p)"
 check "voz desliga ventilador (MQTT)" "Feito: ventilador desligado." "$out"
+
+# --- casa e indústria: máquina com confirmação, sensor Modbus, Bluetooth e dispositivos proibidos
+out=$(ilr "hear liga a bomba" "hear eu confirmo" "hear qual a temperatura da caldeira" "hear liga o abajur" "iot list" "iot celular_joao on")
+check "máquina pede confirmação falada" "diga: eu confirmo" "$out"
+check "máquina liga depois de confirmar" "Feito: bomba ligado." "$out"
+check "sensor Modbus é lido" "temp_caldeira: valor simulado" "$out"
+check "dispositivo Bluetooth liga por voz" "Feito: lampada ble ligado." "$out"
+out2=$(ilr "hear a janela esta aberta" "iot read temp_sala")
+check "sensor GPIO em cabo é lido" "janela: valor simulado" "$out2"
+check "sensor 1-Wire é lido" "temp_sala: valor simulado" "$out2"
+check "celular nunca vira dispositivo" "Dispositivo desconhecido: celular_joao" "$out"
 
 out=$(ilr "hear anda pra frente" "echo" "hear gira pra esquerda noventa graus" "hear pare" "hear vai pra frente dois segundos")
 check "voz anda" "Movendo para frente" "$out"

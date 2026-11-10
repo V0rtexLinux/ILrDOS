@@ -15,6 +15,7 @@
 #include <set>
 
 #include "robot.hpp"
+#include "structure.hpp"
 #include "vision.hpp"
 
 namespace ilrdos {
@@ -112,6 +113,17 @@ public:
         else out << "Não consigo ler minha temperatura";
         out << "; câmera " << (cameraFailing() ? "com problema" : "ok") << "; Wi-Fi " << (wifiDown_ ? "caído" : "ok") << ".";
         return out.str();
+    }
+
+    // Leitura de saúde para a estrutura (cérebro, casco e visor do desenho).
+    HealthSnapshot health() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        HealthSnapshot snapshot;
+        snapshot.haveTemp = haveTemp_;
+        snapshot.tempC = tempC_;
+        snapshot.thermal = thermalName();
+        snapshot.cameraFailing = cameraFailing();
+        return snapshot;
     }
 
 private:

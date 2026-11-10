@@ -10,6 +10,7 @@
 // em vez de fingir que está ok.
 #pragma once
 
+#include <cmath>
 #include <filesystem>
 #include <functional>
 #include <iomanip>
@@ -153,6 +154,31 @@ public:
                         (part.state == PartState::Fail ? "com falha" : "pede atenção");
         }
         return problems.empty() ? "Minha estrutura está toda ok." : "Na minha estrutura: " + problems + ".";
+    }
+
+    // Autopercepção do corpo (interocepção): o robô sente cada peça do desenho em primeira pessoa e diz como se sente.
+    // É um modelo de si derivado de sensores reais — não inventa sensações que a estrutura não mede.
+    std::string selfAwareness() const {
+        const auto list = parts();
+        std::string issues;
+        bool anyFail = false;
+        for (const auto& part : list) {
+            if (part.state != PartState::Warn && part.state != PartState::Fail) continue;
+            anyFail = anyFail || part.state == PartState::Fail;
+            issues += (issues.empty() ? "" : "; ") + std::string(spokenName(part.id)) +
+                      (part.state == PartState::Fail ? " com falha" : " pede atenção") + " (" + part.detail + ")";
+        }
+        std::string out = std::string("Eu me percebo ") + (anyFail ? "mal, preciso de ajuda" : issues.empty() ? "calmo" : "um pouco tenso") + ". ";
+        out += issues.empty() ? "Sinto meu corpo em ordem: energia firme pelos cabos, computador principal estável, dados fluindo do visor e o casco protegendo tudo."
+                              : "Sinto que " + issues + ".";
+        if (probes_.cableTwistDeg && probes_.cableTwistLimitDeg) {
+            const double twist = probes_.cableTwistDeg();
+            if (std::abs(twist) >= 0.4 * std::max(1, probes_.cableTwistLimitDeg())) {
+                out += " Meus cabos estão torcidos " + std::to_string(static_cast<int>(std::lround(std::abs(twist)))) + "° para a " +
+                       (twist > 0 ? "direita." : "esquerda.");
+            }
+        }
+        return out;
     }
 
     // Desenho em texto, para o banner e para `structure map`.

@@ -309,6 +309,35 @@ private:
     std::string label_;
 };
 
+// Entrada digital simples (contato de porta/janela, sensor de presença, botão). O resistor de pull-up/pull-down
+// fica no circuito ou em `gpio=<pino>=pu` no config.txt do Raspberry Pi.
+class GpioInput {
+public:
+    GpioInput(int chipFd, unsigned int offset, const char* label) {
+        gpiohandle_request request{};
+        request.lineoffsets[0] = offset;
+        request.flags = GPIOHANDLE_REQUEST_INPUT;
+        request.lines = 1;
+        std::snprintf(request.consumer_label, sizeof(request.consumer_label), "ilrdos-%s", label);
+        if (ioctl(chipFd, GPIO_GET_LINEHANDLE_IOCTL, &request) < 0) {
+            throw std::runtime_error("Não foi possível reservar GPIO " + std::to_string(offset) + " (" + label + ") como entrada.");
+        }
+        fd_ = request.fd;
+    }
+    ~GpioInput() { if (fd_ >= 0) close(fd_); }
+    GpioInput(const GpioInput&) = delete;
+    GpioInput& operator=(const GpioInput&) = delete;
+
+    std::optional<bool> get() const {
+        gpiohandle_data values{};
+        if (ioctl(fd_, GPIOHANDLE_GET_LINE_VALUES_IOCTL, &values) < 0) return std::nullopt;
+        return values.values[0] != 0;
+    }
+
+private:
+    int fd_{-1};
+};
+
 // Entrada com eventos de borda e timestamp do kernel (usada pelo sonar).
 class GpioEdgeInput {
 public:

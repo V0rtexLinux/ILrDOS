@@ -4,6 +4,19 @@
 # device <nome> http  on=<URL> off=<URL> [method=POST on_body=.. off_body=.. header=Nome:valor] [alias=luz,lampada]
 # device <nome> mqtt  host=<IP> topic=<tópico> [port=1883] [on_payload=ON off_payload=OFF user= pass=] [alias=..]
 # device <nome> gpio  pin=<BCM> [active=high|low] [alias=..]
+# device <nome> modbus host=<IP> unit=1 coil=<n> [port=502 confirm=1 interval=1000 alias=..]     CLP/módulo Modbus TCP (rede cabeada)
+# device <nome> rtu    serial=/dev/ttyUSB0 baud=9600 parity=N unit=1 coil=<n> [confirm=1 ..]        Modbus RS-485 por cabo (adaptador USB)
+# sensor <nome> modbus|rtu <mesmos dados de conexão> reg=<n> [type=holding|input|coil|discrete scale=0.1 offset=0 signed=1 label=C alias=..]
+#                                                                                       só LEITURA: "qual a temperatura da caldeira?" / `iot read <nome>`
+# ---- Casa por cabo: relés (gpio/modbus/rtu) para ligar e sensores em cabo para LER
+# sensor <nome> gpio pin=<BCM> [active=high|low on_text=fechada off_text=aberta alias=..]    contato de porta/janela, presença, botão
+#       (o resistor de pull-up/down fica no circuito, ou `gpio=<pino>=pu` no config.txt do Raspberry Pi)
+# sensor <nome> w1 id=28-xxxxxxxxxxxx [label=C alias=..]                                      temperatura 1-Wire (DS18B20), veja /sys/bus/w1/devices
+# device <nome> ble    mac=AA:BB:CC:DD:EE:FF handle=0x0012 on_hex=01 off_hex=00 [addr_type=public|random alias=..]   Bluetooth LE (conecta na hora)
+# Wi-Fi: use http/mqtt (Tasmota, Shelly, ESPHome...) ou UM http para o Home Assistant, que cobre centenas de aparelhos.
+# confirm=1 => máquina: por voz só liga/desliga depois de "eu confirmo"; nunca por regra automática nem pelo modelo de IA.
+# NUNCA entram: celulares, roteadores/modems e computadores (recusados pelo nome, apelido ou class=).
+# O ILrDOS não é circuito de segurança: parada de emergência, cortinas de luz e intertravamentos ficam em hardware.
 # sensitive=1 => fechadura/portão/fogão: só o terminal autenticado controla (nunca voz, IA, regras ou rosto).
 #
 # Exemplos (descomente e ajuste):
@@ -20,3 +33,15 @@
 #   rule hot -> ventilador on / rule cool -> ventilador off   CPU do robô quente / esfriou
 # rule arrive any -> luz_sala on
 # rule empty -> luz_sala off
+
+# ---- Casa inteira / indústria (exemplos)
+# device bomba_agua modbus host=192.168.1.30 unit=1 coil=3 confirm=1 alias=bomba
+# sensor temp_caldeira modbus host=192.168.1.30 unit=1 reg=10 type=holding scale=0.1 label=C alias=caldeira
+# device esteira rtu serial=/dev/ttyUSB0 baud=19200 parity=E unit=5 coil=0 confirm=1 sensitive=1
+# device abajur_quarto ble mac=AA:BB:CC:DD:EE:FF handle=0x0012 on_hex=01 off_hex=00 alias=abajur
+# Home Assistant (token em header; JSON com %-codificação):
+# device luz_cozinha http on=http://192.168.1.20:8123/api/services/light/turn_on off=http://192.168.1.20:8123/api/services/light/turn_off method=POST on_body=%7B%22entity_id%22%3A%22light.cozinha%22%7D off_body=%7B%22entity_id%22%3A%22light.cozinha%22%7D header=Authorization:Bearer%20SEU_TOKEN header=Content-Type:application/json alias=cozinha
+# Casa por cabo (exemplos):
+# device luz_sala gpio pin=17 alias=luz,lampada          relé ligado direto ao Raspberry Pi
+# sensor janela_quarto gpio pin=22 active=low on_text=fechada off_text=aberta alias=janela
+# sensor temp_sala w1 id=28-0123456789ab alias=temperatura_da_sala
