@@ -1,4 +1,4 @@
-name: Build ILrDOS Windows Client
+name: Build ILrDOS Clients
 
 on:
   workflow_dispatch:
@@ -6,49 +6,109 @@ on:
     branches: ["main", "master"]
     paths:
       - "client/**"
+      - "src/**"
+      - "scripts/build-linux.sh"
+      - "scripts/build-windows.bat"
     tags: ["v*"]
 
 permissions:
   contents: read
 
 jobs:
-  build-windows-client:
-    runs-on: windows-latest
-    permissions:
-      contents: write
+  # ── Linux: ilrdosd + ilrdos-client ─────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configurar MSVC (Developer Command Prompt)
+      - name: Instalar dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            g++ libssl-dev pkg-config
+
+      - name: Compilar
+        run: |
+          chmod +x scripts/build-linux.sh
+          scripts/build-linux.sh
+
+      - name: Ler versão
+        id: ver
+        run: echo "version=$(cat VERSION 2>/dev/null || echo 1.0.0)" >> "$GITHUB_OUTPUT"
+
+      - name: Enviar artefatos Linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: ILrDOS-${{ steps.ver.outputs.version }}-linux-x64
+          path: |
+            build/ilrdosd
+            build/ilrdos-client
+          if-no-files-found: error
+
+  # ── Windows: ILrDOS-Terminal.exe ───────────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar MSVC
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Compilar cliente
+      - name: Compilar
         shell: cmd
-        run: |
-          if not exist build mkdir build
-          cl.exe /nologo /std:c++20 /EHsc /O2 /W4 /DUNICODE /D_UNICODE ^
-            client\ilrdos_client.cpp /Fe:build\ILrDOS-Terminal.exe ^
-            /link Ws2_32.lib Bcrypt.lib
+        run: scripts\build-windows.bat
 
       - name: Ler versão
         id: ver
         shell: bash
         run: echo "version=$(cat VERSION 2>/dev/null || echo 1.0.0)" >> "$GITHUB_OUTPUT"
 
-      - name: Enviar como artefato
+      - name: Enviar artefato Windows
         uses: actions/upload-artifact@v4
         with:
-          name: ILrDOS-Terminal-${{ steps.ver.outputs.version }}-windows-x64
+          name: ILrDOS-${{ steps.ver.outputs.version }}-windows-x64
           path: build\ILrDOS-Terminal.exe
           if-no-files-found: error
 
-      - name: Publicar na Release (tags v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+  # ── Release: anexa tudo ao tag v* ──────────────────────────────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Ler versão
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Baixar artefatos Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: ILrDOS-${{ steps.ver.outputs.version }}-linux-x64
+          path: dist/linux
+
+      - name: Baixar artefato Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: ILrDOS-${{ steps.ver.outputs.version }}-windows-x64
+          path: dist/windows
+
+      - name: Publicar na Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release view "$env:TAG" 2>$null || gh release create "$env:TAG" --title "ILrDOS $env:TAG" --generate-notes
-          gh release upload "$env:TAG" build\ILrDOS-Terminal.exe --clobber
+          gh release view "$TAG" > /dev/null 2>&1 \
+            || gh release create "$TAG" --title "ILrDOS $TAG" --generate-notes
+          chmod +x dist/linux/ilrdosd dist/linux/ilrdos-client
+          gh release upload "$TAG" \
+            dist/linux/ilrdosd \
+            dist/linux/ilrdos-client \
+            dist/windows/ILrDOS-Terminal.exe \
+            --clobber
