@@ -54,12 +54,6 @@ Todo movimento tem prazo (máx. 3 s) e para sozinho se o daemon/rede cair; veloc
 ### Teste sem hardware
 `tests/sim-test.sh` sobe o daemon em `--simulate` e exercita conversa, movimento, sonar, IoT, regras, cadastro/reconhecimento de rosto e rastreamento.
 
-## Sincronização em nuvem (opcional)
-
-O diretório `cloud/` adiciona um serviço próprio com API Python e banco SQLite, um agente leve para o robô, pareamento consentido por PIN temporário, sincronização de estado/logs, fila de comandos limitada e revogação. O agente conversa com o daemon ILrDOS somente por `127.0.0.1`; a porta do robô não precisa ser exposta à internet. O serviço deve ficar atrás de HTTPS e não é provisionado por este repositório.
-
-O pareamento exige confirmação interativa no robô e aprovação administrativa do PIN. Comandos remotos aceitos: `status`, `stop`, movimento curto e giro limitado; o daemon continua aplicando seus intertravamentos. Para instalação do serviço, pareamento, API e testes, veja [`cloud/README.md`](cloud/README.md). Rode a suíte da nuvem com `python3 -m unittest discover -s cloud/tests -v`.
-
 ## O que já existia (1.x)
 
 - Serviço Linux que inicia com o Raspberry Pi.
