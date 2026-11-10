@@ -53,7 +53,7 @@ check "voz desliga ventilador (MQTT)" "Feito: ventilador desligado." "$out"
 # --- casa e indústria: máquina com confirmação, sensor Modbus, Bluetooth e dispositivos proibidos
 out=$(ilr "hear liga a bomba" "hear eu confirmo" "hear qual a temperatura da caldeira" "hear liga o abajur" "iot list" "iot celular_joao on")
 check "máquina pede confirmação falada" "diga: eu confirmo" "$out"
-check "máquina liga depois de confirmar" "Feito: bomba ligado." "$out"
+check "máquina liga depois de confirmar" "bomba: on." "$out"
 check "sensor Modbus é lido" "temp_caldeira: valor simulado" "$out"
 check "dispositivo Bluetooth liga por voz" "Feito: lampada ble ligado." "$out"
 out2=$(ilr "hear a janela esta aberta" "iot read temp_sala")
@@ -69,12 +69,12 @@ echo 8 >"$TMP/sonar"; sleep 0.4
 out=$(ilr "hear anda pra frente" "move forward 1000" "move back 1000")
 check "sonar bloqueia avanço (voz)" "Obstáculo a 8 cm" "$out"
 check "sonar bloqueia avanço (terminal)" "Obstáculo" "$out"
-check "ré limitada, mas permitida" "Movendo para trás a 40% por 1000 ms" "$out"
+check "ré limitada, mas permitida" "Movendo para trás a 30% por 1000 ms" "$out"
 echo 200 >"$TMP/sonar"
 
 # --- estrutura: limite de torção dos cabos (energia -/+ e dados do visor) e `untwist`
 out=$(ilr "turn left 180" "@3" "turn left 180" "untwist" "@4")
-check "limite de torção recusa giro além dos cabos" "Cabos já torcidos" "$out"
+check "limite de torção reduz o giro para proteger os cabos" "reduzido: limite de torção dos cabos" "$out"
 check "untwist desfaz a torção" "Desfazendo a torção" "$out"
 
 # --- rostos: cadastro com consentimento falado
