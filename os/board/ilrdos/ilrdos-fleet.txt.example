@@ -1,0 +1,49 @@
+# ILrDOS - frota de OUTROS robôs (partição BOOT). O ILrDOS coordena; cada robô continua fazendo o próprio trabalho.
+# O robô SÓ comanda o que estiver declarado aqui. Endereços precisam ser da rede local. Valores com espaço: use %20.
+#
+# robot <nome> <http|mqtt|modbus|rtu|ble> class=<tipo> [zone=<área>] [alias=a,b] [confirm=1] [sensitive=1]
+#       [interval=2000] [max_run=120]  ...e as chaves do canal:
+#
+#   http   start=<URL> stop=<URL> [pause=<URL> dock=<URL> status=<URL>] [method=POST body=.. header=Nome:valor]
+#   mqtt   host=<IP> topic=<tópico> [port=1883 user= pass= retain=1] [start_payload=START stop_payload=STOP pause_payload=PAUSE dock_payload=HOME]
+#          (os padrões START/STOP/PAUSE/HOME são os do Valetudo)
+#   modbus host=<IP> unit=1 coil_start=<n> coil_stop=<n> [coil_pause=<n> coil_dock=<n> status_reg=<n> port=502 pulse=1]
+#   rtu    serial=/dev/ttyUSB0 baud=9600 parity=N unit=1 coil_start=<n> coil_stop=<n> [...]    Modbus RS-485 por cabo
+#   ble    mac=AA:BB:CC:DD:EE:FF handle=0x0012 start_hex=01 stop_hex=00 [pause_hex= dock_hex= addr_type=public|random]
+#
+# Ações (iguais para qualquer robô): start = iniciar | stop = parar | pause = pausar | dock = voltar para a base/carregar.
+# Todo robô precisa ter start e stop (para o ILrDOS sempre poder pará-lo).
+#
+# group <nome> <robo1,robo2,...> [alias=casa,limpeza]     comanda vários de uma vez ("limpe a casa", "pare a limpeza")
+# rule <arrive|empty|hot|cool> [any|known|known:Nome|unknown] -> <robô|grupo> <start|stop|pause|dock>
+#
+# ---- Segurança ----
+#  * STOP, pause e dock valem de qualquer origem (voz, regra, IA, terminal): são a direção segura.
+#  * START de máquina pesada (class= industrial, agv, amr, braco, esteira, empilhadeira, cnc, maquina...), de cortador de grama
+#    (lâmina) ou de robô com confirm=1: só por voz com "eu confirmo" (um robô por vez) ou pelo terminal autenticado.
+#    Nunca por regra automática, por marca do modelo de IA nem por grupo.
+#  * sensitive=1: só o terminal autenticado inicia o robô.
+#  * zone=: dois robôs da mesma zona não trabalham juntos (o segundo espera o primeiro parar ou passar de max_run minutos).
+#  * NUNCA entram: celulares, roteadores/modems e computadores.
+#  * O ILrDOS não é circuito de segurança: parada de emergência, cortinas de luz e intertravamentos ficam em hardware.
+#    O stop daqui é um comando de rede e pode falhar se o robô estiver fora do ar.
+#
+# ---- Exemplos (descomente e ajuste) ----
+# Aspirador com Valetudo (MQTT):
+# robot aspirador mqtt host=192.168.1.10 topic=valetudo/aspirador/BasicControlCapability/operation/set class=aspirador zone=casa alias=aspirador,robo_aspirador
+# Aspirador/esfregão pelo Home Assistant (um robô por serviço; token em header):
+# robot esfregao http start=http://192.168.1.20:8123/api/services/vacuum/start stop=http://192.168.1.20:8123/api/services/vacuum/stop dock=http://192.168.1.20:8123/api/services/vacuum/return_to_base method=POST body=%7B%22entity_id%22%3A%22vacuum.esfregao%22%7D header=Authorization:Bearer%20SEU_TOKEN header=Content-Type:application/json class=esfregao zone=casa alias=esfregao,mop
+# Robô de piscina com relé Modbus:
+# robot piscina modbus host=192.168.1.30 unit=1 coil_start=5 coil_stop=6 class=piscina alias=robo_da_piscina
+# Cortador de grama (lâmina: start sempre pede "eu confirmo"):
+# robot cortador mqtt host=192.168.1.10 topic=grama/comando class=cortador_de_grama alias=cortador,cortador_de_grama
+# Indústria: AGV e esteira por Modbus (confirmação obrigatória para iniciar; stop sempre vale):
+# robot agv1 modbus host=192.168.1.40 unit=1 coil_start=0 coil_stop=1 coil_dock=2 status_reg=10 class=agv zone=corredor_a alias=agv,empilhadeira_um
+# robot esteira rtu serial=/dev/ttyUSB0 baud=19200 parity=E unit=5 coil_start=0 coil_stop=1 class=esteira sensitive=1
+#
+# group limpeza aspirador,esfregao alias=limpeza,casa
+#
+# ---- Regras automáticas (o ILrDOS decide sozinho; só iniciam robôs comuns) ----
+# rule empty -> aspirador start         ninguém à vista: manda o aspirador limpar
+# rule arrive any -> aspirador dock     chegou alguém: o aspirador volta para a base
+# rule arrive unknown -> agv1 stop      desconhecido na área: para o AGV (proteção extra, não substitui o hardware)

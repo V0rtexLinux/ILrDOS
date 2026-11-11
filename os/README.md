@@ -34,6 +34,12 @@ Conversa, voz, locomoção, IoT e rostos rodam dentro do `ilrdosd`. Na BOOT fica
 remontada em escrita só por instantes). Áudio: placa USB (`snd-usb-audio`), escolhida automaticamente.
 A build baixa libvosk (aarch64) e o modelo PT-BR do Vosk (`package/ilrdos-vosk`) e o SFace (`scripts/fetch-models.sh`).
 
+## v2.2.0 na imagem: frota de robôs
+
+O `ilrdosd` também coordena **outros robôs** (aspiradores, esfregões, cortadores, robôs de piscina, AGVs, esteiras...).
+Na BOOT fica `ilrdos-fleet.txt` (exemplo comentado em `board/ilrdos/ilrdos-fleet.txt.example`); sem o arquivo, a frota fica vazia
+e nada muda. Terminal: `fleet list|status [nome]|stop all|<robô|grupo> start|stop|pause|dock`.
+
 ## Gerar a imagem (Linux, WSL2 ou Docker; ~15 GB livres; a primeira build leva horas)
 
 ```sh

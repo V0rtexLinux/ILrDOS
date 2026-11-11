@@ -1,4 +1,4 @@
-// ILrDOS 2.0 — daemon do robô: console autenticado, visão/rostos, voz, movimento, IoT e autonomia.
+// ILrDOS 2.2 — daemon do robô: console autenticado, visão/rostos, voz, movimento, IoT, frota de outros robôs e autonomia.
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -14,6 +14,7 @@
 
 #include "autonomy.hpp"
 #include "conversation.hpp"
+#include "fleet.hpp"
 #include "impact.hpp"
 #include "iot.hpp"
 #include "motors.hpp"
@@ -24,7 +25,7 @@ using namespace ilrdos;
 namespace {
 
 constexpr char kName[] = "ILrDOS";
-constexpr char kVersion[] = "2.1.0";
+constexpr char kVersion[] = "2.2.0";
 constexpr int kDefaultPort = 4317;
 constexpr int kMaxLine = 512;
 constexpr int kClientTimeoutSeconds = 20;
@@ -160,6 +161,7 @@ struct Services {
     DriveSystem& drive;
     ImpactSensor& impact;
     IotHub& iot;
+    FleetHub& fleet;
     FaceStore& faces;
     Conversation& conversation;
     RobotStructure& structure;
@@ -221,7 +223,8 @@ std::string commandReply(const std::string& raw, Services& s) {
     if (command == "help") {
         return "Comandos: help | status | eye idle|listen|think|speak|alert|off | vision status|scan | "
                "face list|who|enroll <nome>|forget <nome|all>|cancel | move forward|back|left|right [ms] [vel] | "
-               "turn left|right [graus] | untwist [zero] | stop | iot list|read <nome>|<dispositivo> on|off|toggle | say <texto> | hear <texto> | "
+               "turn left|right [graus] | untwist [zero] | stop | iot list|read <nome>|<dispositivo> on|off|toggle | "
+               "fleet list|status [nome]|stop all|<robô|grupo> start|stop|pause|dock | say <texto> | hear <texto> | "
                "voice status | structure [map|power|brain|datalink|casing|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
                "O terminal controla somente funções autorizadas do robô.";
     }
@@ -231,6 +234,7 @@ std::string commandReply(const std::string& raw, Services& s) {
               << " | GPIO=" << (s.robot.simulated() ? "simulado" : "ativo")
               << " | autonomia=" << (s.autonomy.enabled() ? "on" : "off")
               << " | " << s.drive.status()
+              << " | frota=" << s.fleet.count()
               << " | rostos=" << s.faces.names().size()
               << " | " << s.structure.summary()
               << " | ligado=" << s.robot.uptimeSeconds() << "s";
@@ -282,6 +286,14 @@ std::string commandReply(const std::string& raw, Services& s) {
     if (w.size() >= 2 && w[0] == "turn" && (w[1] == "left" || w[1] == "right")) {
         s.autonomy.noteExternalMotion();
         return s.drive.turnDegrees(w[1] == "left", toInt(w, 2, 90));
+    }
+    if (!w.empty() && w[0] == "fleet") {
+        if (w.size() == 2 && w[1] == "list") return s.fleet.list();
+        if (w.size() == 2 && w[1] == "status") return s.fleet.list();
+        if (w.size() == 3 && w[1] == "status") return s.fleet.status(w[2]);
+        if (w.size() == 3 && w[1] == "stop" && w[2] == "all") return s.fleet.stopAll(Origin::Terminal);
+        if (w.size() == 3) return s.fleet.command(w[1], w[2], Origin::Terminal);
+        return "Uso: fleet list | status [nome] | stop all | <robô|grupo> start|stop|pause|dock";
     }
     if (command == "iot list") return s.iot.list();
     if (w.size() == 3 && w[0] == "iot" && w[1] == "read") return s.iot.read(w[2]);
@@ -401,6 +413,10 @@ int runServer(const Options& o) {
     IotHub iot(cfg.str("IOT_CONFIG", "/boot/ilrdos-iot.txt"), o.gpioChip, o.simulate);
     std::cout << "[iot] " << iot.load() << '\n';
 
+    // Frota: outros robôs (aspiradores, máquinas de casa e de indústria) coordenados pelo ILrDOS
+    FleetHub fleet(cfg.str("FLEET_CONFIG", "/boot/ilrdos-fleet.txt"), o.simulate);
+    std::cout << "[frota] " << fleet.load() << '\n';
+
     // voz e conversa
     const std::string pc = cfg.str("PC_IP");
     const std::string ttsUrl = cfg.str("TTS_URL", pc.empty() ? "" : "http://" + pc + ":5050/v1/audio/speech");
@@ -422,7 +438,16 @@ int runServer(const Options& o) {
     act.stop = [&] { drive.stop("voz"); };
     act.iot = [&](const std::string& d, const std::string& a) { return iot.command(d, a, Origin::Voice); };
     act.iotModel = [&](const std::string& d, const std::string& a) { return iot.command(d, a, Origin::Model); };
-    act.iotConfirm = [&] { return iot.confirmPending(); };
+    // "eu confirmo": primeiro a frota (se havia um robô esperando), depois os dispositivos IoT.
+    act.iotConfirm = [&] {
+        const std::string reply = fleet.confirmPending();
+        return reply.empty() ? iot.confirmPending() : reply;
+    };
+    act.fleetInfos = [&] { return fleet.infos(); };
+    act.fleet = [&](const std::string& r, const std::string& a) { return fleet.command(r, a, Origin::Voice); };
+    act.fleetModel = [&](const std::string& r, const std::string& a) { return fleet.command(r, a, Origin::Model); };
+    act.fleetStatus = [&](const std::string& r) { return fleet.status(r); };
+    act.fleetStopAll = [&] { return fleet.stopAll(Origin::Voice); };
     act.iotRead = [&](const std::string& d) { return iot.read(d); };
     act.devices = [&] { return iot.infos(); };
     act.look = [&] { return vision.recent(1500); };
@@ -457,7 +482,7 @@ int runServer(const Options& o) {
 
     AutonomyHooks hooks;
     hooks.say = [&](const std::string& t) { conversation.announce(t); };
-    hooks.fireRule = [&](const std::string& e, const std::string& s, const std::string& who) { iot.fire(e, s, who); };
+    hooks.fireRule = [&](const std::string& e, const std::string& s, const std::string& who) { iot.fire(e, s, who); fleet.fire(e, s, who); };
     hooks.pulseTurn = [&](bool left, int ms, int speed) { drive.pulseTurn(left, ms, speed); };
     hooks.move = [&](const std::string& dir, int speed, int ms) { bool ok = false; const auto d = parseDir(dir, ok); return ok ? drive.move(d, speed, ms) : std::string(); };
     hooks.turn = [&](bool left, int deg) { return drive.turnDegrees(left, deg); };
@@ -505,7 +530,7 @@ int runServer(const Options& o) {
     drive.setGuard([&] { return structure.motionBlockReason(); });   // tensão baixa / calor crítico = não anda
     std::cout << "[estrutura] " << structure.summary() << " | " << RobotStructure::map() << '\n';
 
-    Services services{robot, vision, autonomy, drive, impact, iot, faces, conversation, structure};
+    Services services{robot, vision, autonomy, drive, impact, iot, fleet, faces, conversation, structure};
     FailureTracker failures;
 
     addrinfo hints{};

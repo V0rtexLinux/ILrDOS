@@ -20,8 +20,22 @@ rule arrive known:Maria -> ventilador on
 rule empty -> luz_sala off
 rule arrive known -> porta on
 CFG
+cat >"$TMP/fleet.txt" <<'CFG'
+robot aspirador mqtt host=192.168.1.10 topic=valetudo/aspirador/set class=aspirador zone=casa alias=aspirador interval=0
+robot esfregao http start=http://192.168.1.20/start stop=http://192.168.1.20/stop dock=http://192.168.1.20/dock class=esfregao zone=casa alias=esfregao,mop interval=0
+robot piscina modbus host=192.168.1.30 unit=1 coil_start=5 coil_stop=6 class=piscina alias=piscina interval=0
+robot agv1 modbus host=192.168.1.40 unit=1 coil_start=0 coil_stop=1 class=agv zone=corredor_a alias=agv interval=0
+robot esteira rtu serial=/dev/ttyUSB0 baud=19200 parity=E unit=5 coil_start=0 coil_stop=1 class=esteira sensitive=1 alias=esteira interval=0
+robot celular_robo http start=http://192.168.1.5/on stop=http://192.168.1.5/off class=celular
+robot sem_parar http start=http://192.168.1.6/on class=aspirador
+group ronda aspirador,agv1 alias=ronda
+rule arrive known:Maria -> piscina start
+rule empty -> agv1 stop
+rule arrive any -> agv1 start
+rule arrive known -> esteira start
+CFG
 echo 200 >"$TMP/sonar"; : >"$TMP/faces"
-export ILRDOS_IOT_CONFIG="$TMP/iot.txt" ILRDOS_FACE_DB="$TMP/faces.db" ILRDOS_SIM_FACES_FILE="$TMP/faces" \
+export ILRDOS_IOT_CONFIG="$TMP/iot.txt" ILRDOS_FLEET_CONFIG="$TMP/fleet.txt" ILRDOS_FACE_DB="$TMP/faces.db" ILRDOS_SIM_FACES_FILE="$TMP/faces" \
        ILRDOS_SIM_SONAR_FILE="$TMP/sonar" ILRDOS_SIM_MOTORS=1 ILRDOS_SIM_SILENT=1
 "${ROOT}/build/ilrdosd" --simulate --autonomy --scan-interval 1 --bind 127.0.0.1 --port "$PORT" \
   --token-file "$TMP/token" --config /nonexistent >"$TMP/daemon.log" 2>&1 &
@@ -72,6 +86,32 @@ check "sonar bloqueia avanço (terminal)" "Obstáculo" "$out"
 check "ré limitada, mas permitida" "Movendo para trás a 30% por 1000 ms" "$out"
 echo 200 >"$TMP/sonar"
 
+# --- frota: o ILrDOS coordena outros robôs (aspirador, esfregão, piscina, AGV, esteira)
+out=$(ilr "fleet list" "hear inicia o aspirador" "hear manda o esfregao limpar" "hear aspirador volta pra base" "hear manda o esfregao limpar" "hear como esta o esfregao")
+check "frota lista os robôs e grupos" "ronda[grupo]" "$out"
+check "robô sem ação stop é recusado" "ignorada: todo robô precisa de uma ação start e uma stop" "$(cat "$TMP/daemon.log")"
+check "celular nunca vira robô da frota" "ignorada: robô recusado ('celular')" "$(cat "$TMP/daemon.log")"
+check "voz inicia o aspirador" "aspirador iniciado." "$out"
+check "mesma zona: segundo robô espera" "já está trabalhando na mesma zona (casa)" "$out"
+check "voz manda o aspirador voltar à base" "aspirador voltando para a base." "$out"
+check "zona livre: esfregão inicia" "esfregao iniciado." "$out"
+check "estado do robô por voz" "(simulado)" "$(grep -F 'esfregao:' <<<"$out")"
+
+out=$(ilr "hear liga o agv" "hear eu confirmo" "hear liga a esteira" "iot list" "fleet esteira start" "hear para a esteira" "fleet celular_robo start")
+check "máquina industrial pede confirmação falada" "diga: eu confirmo" "$out"
+check "máquina inicia depois de confirmar" "agv1 iniciado." "$out"
+check "robô sensível não inicia por voz" "só o terminal autenticado pode iniciá-lo" "$out"
+check "terminal inicia robô sensível" "esteira iniciado." "$out"
+check "parar vale por voz mesmo para robô sensível" "esteira parado." "$out"
+check "robô recusado não existe" "Robô desconhecido: celular_robo" "$out"
+
+out=$(ilr "hear pare o esfregao" "hear inicia a ronda" "hear pare tudo" "fleet list")
+check "grupo inicia o que é seguro" "ronda: 1 de 2 iniciados." "$out"
+check "grupo recusa máquina que pede confirmação" "agv1 é uma máquina: só inicia por pedido falado com confirmação, individualmente" "$out"
+check "pare tudo para a frota inteira" "parados." "$(grep -F 'frota:' <<<"$out")"
+check "regra automática NÃO inicia máquina" "regras automáticas não podem iniciar máquinas" "$(cat "$TMP/daemon.log")"
+check "regra automática NÃO inicia robô sensível" "nem robôs sensíveis" "$(grep -F '[frota] linha 12' "$TMP/daemon.log")"
+
 # --- estrutura: limite de torção dos cabos (energia -/+ e dados do visor) e `untwist`
 out=$(ilr "turn left 180" "@3" "turn left 180" "untwist" "@4")
 check "limite de torção reduz o giro para proteger os cabos" "reduzido: limite de torção dos cabos" "$out"
@@ -91,6 +131,7 @@ check "reconhece depois do cadastro" "Você é Maria." "$out"
 ! grep -q "^Maria .* .* .*" /dev/null || true
 check "autonomia cumprimentou pelo nome" "Olá, Maria" "$(cat "$TMP/daemon.log")"
 check "regra por pessoa conhecida disparou" "ventilador ligado" "$(cat "$TMP/daemon.log")"
+check "regra da frota por pessoa conhecida disparou" "piscina -> start ok" "$(cat "$TMP/daemon.log")"
 check "regra automática NÃO controla dispositivo sensível" "ignorada: regras automáticas não podem controlar dispositivos sensíveis" "$(cat "$TMP/daemon.log")"
 
 echo "Joao 0.5 0.3" >"$TMP/faces"; sleep 3

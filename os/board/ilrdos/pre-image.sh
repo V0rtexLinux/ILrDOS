@@ -22,3 +22,4 @@ fi
 cp "$HERE/ilrdos.txt.example" "$FW/ilrdos.txt"
 cp "$HERE/ilrdos-robot.txt.example" "$FW/ilrdos-robot.txt"
 cp "$HERE/ilrdos-iot.txt.example" "$FW/ilrdos-iot.txt"
+cp "$HERE/ilrdos-fleet.txt.example" "$FW/ilrdos-fleet.txt"

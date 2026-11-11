@@ -48,6 +48,9 @@ fi
 if ! sudo test -f /etc/ilrdos/iot.txt; then
   sudo install -m 0640 -o "$ROBOT_USER" -g "$ROBOT_GROUP" "${ROOT}/os/board/ilrdos/ilrdos-iot.txt.example" /etc/ilrdos/iot.txt
 fi
+if ! sudo test -f /etc/ilrdos/fleet.txt; then
+  sudo install -m 0640 -o "$ROBOT_USER" -g "$ROBOT_GROUP" "${ROOT}/os/board/ilrdos/ilrdos-fleet.txt.example" /etc/ilrdos/fleet.txt
+fi
 
 sudo tee /etc/systemd/system/ilrdos.service >/dev/null <<EOF
 [Unit]
@@ -61,6 +64,7 @@ User=${ROBOT_USER}
 SupplementaryGroups=gpio audio video
 StateDirectory=ilrdos
 Environment=ILRDOS_IOT_CONFIG=/etc/ilrdos/iot.txt
+Environment=ILRDOS_FLEET_CONFIG=/etc/ilrdos/fleet.txt
 Environment=ILRDOS_FACE_DB=/var/lib/ilrdos/faces.db
 ExecStart=/usr/local/bin/ilrdosd --bind 0.0.0.0 --port 4317 --token-file /etc/ilrdos/token --config /etc/ilrdos/robot.txt --gpio-chip /dev/gpiochip0 --eye-pin 18 --alert-pin 23 --vision-model /usr/share/ilrdos/models/face_detection_yunet_2023mar.onnx --camera-index 0
 Restart=on-failure
