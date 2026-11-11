@@ -149,15 +149,6 @@ jobs:
           compression-level: 0    # já é .xz
           retention-days: 30
 
-      - name: Publicar na Release (tags v*)
-        if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.release_tag || github.ref_name }}
-        run: |
-          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "ILrDOS $TAG" --generate-notes
-          gh release upload "$TAG" /mnt/ilrdos-work/dist/*.img.xz /mnt/ilrdos-work/dist/*.sha256 --clobber
-
       - name: Enviar log da build (em caso de falha)
         if: failure()
         uses: actions/upload-artifact@v4
@@ -165,3 +156,37 @@ jobs:
           name: build-log
           path: ${{ runner.temp }}/build.log
           if-no-files-found: ignore
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
+    needs: [build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Ler versão
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Baixar artefatos Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: ILrDOS-${{ steps.ver.outputs.version }}-linux-x64
+          path: dist/linux
+
+      - name: Baixar artefato Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: ILrDOS-${{ steps.ver.outputs.version }}-windows-x64
+          path: dist/windows
+
+      - name: Publicar na Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          gh release view "$TAG" > /dev/null 2>&1 \
+            || gh release create "$TAG" --title "ILrDOS $TAG" --generate-notes
+          chmod +x dist/linux/ilrdosd dist/linux/ilrdos-client
+          gh release upload "$TAG" \
