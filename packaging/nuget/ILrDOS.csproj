@@ -24,7 +24,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- conteúdo do "cmake --install" (include/ + lib/cmake/ilrdos/ + LICENSE) -->
+    <!-- conteúdo do "cmake install" (include/ + lib/cmake/ilrdos/ + LICENSE) -->
     <None Include="$(StageDir)/**/*" Pack="true" PackagePath="ilrdos/%(RecursiveDir)" />
     <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
