@@ -29,4 +29,9 @@
     <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <Target Name="CheckStage" BeforeTargets="GenerateNuspec">
+    <Error Condition="!Exists('$(StageDir)/include/ilrdos/ilrdos.hpp')"
+           Text="Stage não populado: execute cmake --install antes de dotnet pack. StageDir=$(StageDir)" />
+  </Target>
+
 </Project>
