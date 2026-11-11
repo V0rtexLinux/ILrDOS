@@ -35,10 +35,13 @@ jobs:
         run: |
           VERSION="$(head -n1 VERSION | tr -d '[:space:]')"
           echo "Versão: $VERSION"
-          dotnet pack packaging/nuget/ILrDOS.csproj -c Release -o out \
-            -p:Version="$VERSION" \
-            -p:RepositoryCommit="$GITHUB_SHA"
-          unzip -l out/*.nupkg | head -30
+          ls -R packaging/nuget/stage | head -40
+          if ! dotnet pack packaging/nuget/ILrDOS.csproj -c Release -o out \
+              -p:Version="$VERSION" -p:RepositoryCommit="$GITHUB_SHA" 2>&1 | tee pack.log; then
+            echo "::error title=dotnet pack falhou::$(grep -E 'error|NU[0-9]{4}|MSB[0-9]{4}' pack.log | sort -u | head -5 | tr '\n' ' ')"
+            exit 1
+          fi
+          python3 -m zipfile -l out/*.nupkg | head -30
 
       - name: Publicar no GitHub Packages
         run: |
