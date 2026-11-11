@@ -32,15 +32,21 @@ jobs:
           cmake --install build-pkg
 
       - name: Empacotar
+        shell: bash
         run: |
+          set -euo pipefail
           VERSION="$(head -n1 VERSION | tr -d '[:space:]')"
           echo "Versão: $VERSION"
           ls -R packaging/nuget/stage | head -40
+          mkdir -p out
           if ! dotnet pack packaging/nuget/ILrDOS.csproj -c Release -o out \
-              -p:Version="$VERSION" -p:RepositoryCommit="$GITHUB_SHA" 2>&1 | tee pack.log; then
+              -p:Version="$VERSION" -p:RepositoryCommit="$GITHUB_SHA" > pack.log 2>&1; then
+            cat pack.log
             echo "::error title=dotnet pack falhou::$(grep -E 'error|NU[0-9]{4}|MSB[0-9]{4}' pack.log | sort -u | head -5 | tr '\n' ' ')"
             exit 1
           fi
+          cat pack.log
+          ls out/*.nupkg
           python3 -m zipfile -l out/*.nupkg | head -30
 
       - name: Publicar no GitHub Packages
