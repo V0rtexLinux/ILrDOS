@@ -7,10 +7,11 @@
 ILRDOS_VERSION = 2.0.0
 ILRDOS_SITE = $(BR2_EXTERNAL_ILRDOS_PATH)/..
 ILRDOS_SITE_METHOD = local
-ILRDOS_LICENSE = Proprietary
+ILRDOS_LICENSE = MIT
+ILRDOS_LICENSE_FILES = LICENSE
 ILRDOS_DEPENDENCIES = host-pkgconf openssl opencv4 alsa-lib
 
-ILRDOS_CXXFLAGS = -std=c++20 -O2 -Wall -Wextra -fstack-protector-strong \
+ILRDOS_CXXFLAGS = -I$(@D)/include -std=c++20 -O2 -Wall -Wextra -fstack-protector-strong \
 	-pthread -DILRDOS_HAVE_OPENCV=1 -DILRDOS_HAVE_ALSA=1
 
 ifeq ($(BR2_PACKAGE_ILRDOS_VOSK),y)

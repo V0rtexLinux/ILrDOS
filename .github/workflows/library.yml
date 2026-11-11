@@ -1,0 +1,42 @@
+name: Library (CMake package)
+
+# Compila a biblioteca, instala e confere que um projeto externo consegue usar find_package(ilrdos).
+on:
+  pull_request:
+  push:
+    branches: ["main", "master"]
+    paths:
+      - "include/**"
+      - "src/**"
+      - "client/**"
+      - "cmake/**"
+      - "tests/consumer/**"
+      - "CMakeLists.txt"
+      - "VERSION"
+      - ".github/workflows/library.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cmake-package:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends g++ cmake libssl-dev pkg-config
+
+      - name: Configurar, compilar e instalar
+        run: |
+          cmake -S . -B build-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$PWD/_install"
+          cmake --build build-cmake -j"$(nproc)"
+          cmake --install build-cmake
+
+      - name: Testar como pacote externo (find_package)
+        run: |
+          cmake -S tests/consumer -B build-consumer -DCMAKE_PREFIX_PATH="$PWD/_install"
+          cmake --build build-consumer
+          ./build-consumer/consumer

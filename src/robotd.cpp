@@ -12,13 +12,13 @@
 #include <iomanip>
 #include <unordered_map>
 
-#include "autonomy.hpp"
-#include "conversation.hpp"
-#include "fleet.hpp"
-#include "impact.hpp"
-#include "iot.hpp"
-#include "motors.hpp"
-#include "structure.hpp"
+#include <ilrdos/autonomy.hpp>
+#include <ilrdos/conversation.hpp>
+#include <ilrdos/fleet.hpp>
+#include <ilrdos/impact.hpp>
+#include <ilrdos/iot.hpp>
+#include <ilrdos/motors.hpp>
+#include <ilrdos/structure.hpp>
 
 using namespace ilrdos;
 

@@ -2,6 +2,25 @@
 
 Runtime do robô em C++ (Raspberry Pi OS ou a imagem própria em `os/`). Desde a 2.0.0 o robô fala, ouve, anda, controla dispositivos IoT, conversa, cadastra e reconhece rostos — tudo decidido pelo próprio robô. A arquitetura alvo é o Raspberry Pi Zero 2 W e os GPIO 18 (olho) / 23 (alerta vermelho) descritos no material original.
 
+## Usar como biblioteca (open source, MIT)
+
+O ILrDOS é uma biblioteca C++20 *header-only* (`include/ilrdos/`) e o `ilrdosd` é só um programa que a usa. Qualquer projeto pode usar a estrutura do robô, a frota, o IoT etc. como API:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(ilrdos GIT_REPOSITORY https://github.com/V0rtexLinux/ILrDOS.git GIT_TAG v2.2.0)
+FetchContent_MakeAvailable(ilrdos)
+
+add_executable(meu_robo main.cpp)
+target_link_libraries(meu_robo PRIVATE ilrdos::ilrdos)
+```
+
+```cpp
+#include <ilrdos/ilrdos.hpp>
+```
+
+Ou instale e use `find_package(ilrdos CONFIG REQUIRED)` (`cmake --install build-cmake`). Opções do CMake: `ILRDOS_WITH_OPENCV`, `ILRDOS_WITH_ALSA`, `ILRDOS_WITH_VOSK`, `ILRDOS_BUILD_DAEMON`. Dependência obrigatória: OpenSSL. Veja [CONTRIBUTING.md](CONTRIBUTING.md) para modificar e contribuir.
+
 ## Frota: o ILrDOS coordenando outros robôs (2.2.0)
 
 O ILrDOS agora comanda **outros robôs**: aspiradores, esfregões, cortadores de grama, robôs de piscina e também máquinas de indústria (AGVs, esteiras, braços, empilhadeiras). Ele não pilota cada robô; manda comandos de alto nível pelo canal que o robô já tem e coordena quem trabalha onde e quando. As ações são sempre as mesmas, para qualquer marca: **start** (iniciar), **stop** (parar), **pause** (pausar) e **dock** (voltar para a base/carregar).
@@ -42,7 +61,7 @@ rule arrive unknown -> agv1 stop       # desconhecido na área: para o AGV
 
 ## Estrutura do robô (2.1.0)
 
-O OS segue o desenho do projeto. Cada peça vira uma entrada de `src/structure.hpp` com estado (`ok`, `atencao`, `falha` ou `sem-sensor`):
+O OS segue o desenho do projeto. Cada peça vira uma entrada de `include/ilrdos/structure.hpp` com estado (`ok`, `atencao`, `falha` ou `sem-sensor`):
 
 ```
 [cabos de eletricidade principais  - / +] --> [cérebro / computador principal]

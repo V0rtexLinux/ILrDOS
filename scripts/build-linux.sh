@@ -63,7 +63,7 @@ read -r -a EXTRA_L <<<"${ILRDOS_EXTRA_LIBS:-}"
 
 c++ -std=c++20 -O2 -Wall -Wextra -Wpedantic \
   -fstack-protector-strong -D_FORTIFY_SOURCE=2 \
-  "${OPENSSL_CFLAGS[@]}" "${OPENCV_CFLAGS[@]}" "${VOICE_CFLAGS[@]}" "${EXTRA_C[@]}" -pthread "${ROOT}/src/robotd.cpp" \
+  "${OPENSSL_CFLAGS[@]}" "${OPENCV_CFLAGS[@]}" "${VOICE_CFLAGS[@]}" "${EXTRA_C[@]}" -I"${ROOT}/include" -pthread "${ROOT}/src/robotd.cpp" \
   "${OPENSSL_LDFLAGS[@]}" -lcrypto "${OPENCV_LIBS[@]}" "${VOICE_LIBS[@]}" "${EXTRA_L[@]}" \
   -o "${OUT}/ilrdosd"
 

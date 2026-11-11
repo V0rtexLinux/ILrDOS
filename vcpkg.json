@@ -1,0 +1,13 @@
+{
+  "name": "ilrdos",
+  "version-string": "2.2.0",
+  "description": "ILrDOS: runtime C++ (header-only) para robôs — estrutura, fala, visão, IoT e frota.",
+  "homepage": "https://github.com/V0rtexLinux/ILrDOS",
+  "license": "MIT",
+  "dependencies": [ "openssl" ],
+  "default-features": [],
+  "features": {
+    "opencv": { "description": "Câmera e detecção/reconhecimento de rostos", "dependencies": [ "opencv4" ] },
+    "alsa":   { "description": "Áudio (microfone/alto-falante) no Linux", "dependencies": [ { "name": "alsa", "platform": "linux" } ] }
+  }
+}

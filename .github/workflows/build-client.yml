@@ -12,6 +12,7 @@ on:
     paths:
       - "client/**"
       - "src/**"
+      - "include/**"
       - "scripts/build-linux.sh"
       - "scripts/build-windows.bat"
     tags: ["v*"]
