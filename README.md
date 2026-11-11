@@ -1,134 +1,108 @@
 # ILrDOS — Intelligent Lifeform robot Disk Operating System
 
-Runtime do robô em C++ (Raspberry Pi OS ou a imagem própria em `os/`). Desde a 2.0.0 o robô fala, ouve, anda, controla dispositivos IoT, conversa, cadastra e reconhece rostos — tudo decidido pelo próprio robô. A arquitetura alvo é o Raspberry Pi Zero 2 W e os GPIO 18 (olho) / 23 (alerta vermelho) descritos no material original.
+C++ runtime for the robot (Raspberry Pi OS or the custom image in `os/`). Since 2.0.0 the robot speaks, listens, moves, controls IoT devices, holds conversations, enrolls and recognizes faces — all decided by the robot itself. The target architecture is the Raspberry Pi Zero 2 W, with GPIO 18 (eye) and GPIO 23 (red alert) as described in the original material.
 
-## Usar como biblioteca (open source, MIT)
+**Contents**
 
-O ILrDOS é uma biblioteca C++20 *header-only* (`include/ilrdos/`) e o `ilrdosd` é só um programa que a usa. Qualquer projeto pode usar a estrutura do robô, a frota, o IoT etc. como API:
+1. [Overview and Features](#1-overview-and-features)
+2. [Quick Start](#2-quick-start)
+3. [Using ILrDOS as a C++20 Library](#3-using-ilrdos-as-a-c20-library)
+4. [Fleet Automation Example and Remote Terminal](#4-fleet-automation-example-and-remote-terminal)
+5. [Security Notes](#5-security-notes)
+6. [Input Files and Models](#6-input-files-and-models)
 
-```cmake
-include(FetchContent)
-FetchContent_Declare(ilrdos GIT_REPOSITORY https://github.com/V0rtexLinux/ILrDOS.git GIT_TAG v2.2.0)
-FetchContent_MakeAvailable(ilrdos)
+---
 
-add_executable(meu_robo main.cpp)
-target_link_libraries(meu_robo PRIVATE ilrdos::ilrdos)
-```
+## 1. Overview and Features
 
-```cpp
-#include <ilrdos/ilrdos.hpp>
-```
-
-Ou instale e use `find_package(ilrdos CONFIG REQUIRED)` (`cmake --install build-cmake`). Opções do CMake: `ILRDOS_WITH_OPENCV`, `ILRDOS_WITH_ALSA`, `ILRDOS_WITH_VOSK`, `ILRDOS_BUILD_DAEMON`. Dependência obrigatória: OpenSSL. Veja [CONTRIBUTING.md](CONTRIBUTING.md) para modificar e contribuir.
-
-## Frota: o ILrDOS coordenando outros robôs (2.2.0)
-
-O ILrDOS agora comanda **outros robôs**: aspiradores, esfregões, cortadores de grama, robôs de piscina e também máquinas de indústria (AGVs, esteiras, braços, empilhadeiras). Ele não pilota cada robô; manda comandos de alto nível pelo canal que o robô já tem e coordena quem trabalha onde e quando. As ações são sempre as mesmas, para qualquer marca: **start** (iniciar), **stop** (parar), **pause** (pausar) e **dock** (voltar para a base/carregar).
-
-| Canal | Serve para |
+| Capability | How it works |
 |---|---|
-| `http` | Home Assistant, Roborock/Xiaomi via integração, qualquer API local |
-| `mqtt` | Valetudo (padrões START/STOP/PAUSE/HOME), Tasmota, ESPHome |
-| `modbus` / `rtu` | CLPs, AGVs, esteiras, robôs industriais (TCP ou RS-485 por cabo) |
-| `ble` | Robôs de brinquedo e pequenos robôs Bluetooth LE |
+| **Offline voice commands** | Always listening (Vosk PT-BR, running on the Pi itself). Say *"ILrDOS, …"*; afterwards it accepts replies for 10 s without repeating its name. Known commands are understood locally (works without a PC); everything else goes to Ollama on the PC. Without a PC it still obeys commands and introduces itself. |
+| **Speech** | TTS from the PC (GLaDOS/Kokoro, port 5050) with local `espeak` as fallback. |
+| **Movement** | H-bridge + HC-SR04 sonar. It faces whoever is speaking or standing in front of it (`track`), approaches while stopping at a distance, and wanders on its own (`roam`). |
+| **IoT** | `ilrdos-iot.txt`: local HTTP (Tasmota, Shelly, Home Assistant…), MQTT and GPIO relays, plus rules (*someone arrives → turn on the light*). |
+| **Privacy-focused vision** | YuNet detects faces; SFace (OpenCV) recognizes them. Only numeric vectors are stored — never photos. Greets people by name and triggers per-person rules. |
+| **Multi-robot coordination** | Commands other robots (vacuums, mops, lawn mowers, pool robots, AGVs, conveyors, arms, forklifts) over MQTT, Modbus, HTTP and BLE. |
+| **Embedded self-perception** | The robot senses each part of its body in the first person and uses that in conversation. It is honest that it has a *model of itself*, not proof of consciousness. |
+| **Autonomy** | Greets, tracks, roams, adjusts vision according to heat, restarts Wi-Fi, and speaks up when something fails. |
 
-Configuração em `ilrdos-fleet.txt` (BOOT, ou `/etc/ilrdos/fleet.txt`; exemplo comentado em `os/board/ilrdos/ilrdos-fleet.txt.example`):
+### Robot structure (2.1.0)
 
-```
-robot aspirador mqtt host=192.168.1.10 topic=valetudo/aspirador/BasicControlCapability/operation/set class=aspirador zone=casa alias=aspirador
-robot esfregao  http start=http://192.168.1.20/start stop=http://192.168.1.20/stop dock=http://192.168.1.20/dock class=esfregao zone=casa alias=esfregao,mop
-robot agv1      modbus host=192.168.1.40 unit=1 coil_start=0 coil_stop=1 class=agv zone=corredor_a alias=agv
-group limpeza aspirador,esfregao alias=limpeza,casa
-rule empty -> aspirador start          # ninguém à vista: manda limpar
-rule arrive any -> aspirador dock      # chegou alguém: o aspirador volta para a base
-rule arrive unknown -> agv1 stop       # desconhecido na área: para o AGV
-```
-
-**O que a coordenação faz**
-- **Voz, sem PC:** *“inicia o aspirador”*, *“manda o esfregão limpar”*, *“aspirador, volta pra base”*, *“como está o aspirador?”*, *“limpa a casa”* (grupo), *“pare tudo”* / *“emergência”* (para a frota inteira ao mesmo tempo).
-- **Regras por presença:** o robô vê e ouve a casa e decide: sai todo mundo, o aspirador começa; chega alguém, ele volta para a base.
-- **Zonas (`zone=`):** dois robôs da mesma zona não trabalham juntos (aspirador e esfregão na mesma sala, dois AGVs no mesmo corredor). O segundo espera o primeiro parar ou passar de `max_run` minutos.
-- **Grupos:** um comando para vários robôs; o `stop` de grupo e o `pare tudo` vão em paralelo, então um robô fora do ar não atrasa os outros.
-- **Terminal:** `fleet list`, `fleet status [nome]`, `fleet stop all`, `fleet <robô|grupo> start|stop|pause|dock`.
-
-**Segurança da frota**
-- **`stop`, `pause` e `dock` valem sempre**, de qualquer origem (voz, regra, IA, terminal), sem confirmação nem intervalo mínimo: são a direção segura. Todo robô precisa declarar `start` e `stop`.
-- **`start` de máquina pesada** (`class=` industrial, agv, amr, braço, esteira, empilhadeira, cnc, máquina…), de **cortador de grama** (lâmina) ou de robô com `confirm=1` só acontece por voz com **“eu confirmo”** (um robô por vez) ou pelo terminal autenticado. Nunca por regra automática, por marca do modelo de IA nem por grupo.
-- **`sensitive=1`:** só o terminal autenticado inicia o robô.
-- Celulares, roteadores e computadores nunca entram; endereços só da rede local; só existem os robôs declarados no arquivo (nada de URL vinda de fala ou da rede).
-- O estado mostrado é o do último comando, ou o que o próprio robô informar (`status=`/`status_reg=`); textos vindos do robô são tratados como dado.
-- **O ILrDOS não substitui parada de emergência, cortina de luz nem intertravamento.** O `stop` da frota é um comando de rede e pode falhar se o robô estiver fora do ar; em indústria, a segurança continua em hardware.
-
-## Estrutura do robô (2.1.0)
-
-O OS segue o desenho do projeto. Cada peça vira uma entrada de `include/ilrdos/structure.hpp` com estado (`ok`, `atencao`, `falha` ou `sem-sensor`):
+The OS follows the project's design. Each part is an entry in `include/ilrdos/structure.hpp` with a state (`ok`, `atencao`, `falha` or `sem-sensor`):
 
 ```
-[cabos de eletricidade principais  - / +] --> [cérebro / computador principal]
-[visor / câmera] == cabos de transmissão de dados ==> [cérebro / computador principal]
-[casco protetor] envolve o cérebro
+[main power cables  - / +] --> [brain / main computer]
+[visor / camera] == data transmission cables ==> [brain / main computer]
+[protective casing] surrounds the brain
 ```
 
-| Peça do desenho | O que o OS verifica |
+| Part | What the OS checks |
 |---|---|
-| **Cabos de eletricidade principais (− e +)** | Aviso de tensão baixa do firmware do Pi (`get_throttled` ou hwmon `rpi_volt`). Sem esse sensor: `sem-sensor`. Caminho alternativo: `THROTTLED_FILE`. |
-| **Cérebro / computador principal** | Temperatura da CPU, carga e tempo ligado. Quente = atenção; crítico = falha. |
-| **Cabos de transmissão de dados (câmera/visor → computador)** | O dispositivo `/dev/video<N>` existe e a câmera entrega imagem. |
-| **Casco protetor** | Sensor de impacto (queda/batida): para os motores e emite 3 bips suaves (~900 Hz, 30 % duty, não ensurdece). Estado `atencao` por 30 s após a queda. Também monitora temperatura interna (rodas paradas e visão reduzida quando esquenta). |
-| **Visor / câmera** | Câmera aberta, rostos na última varredura, se o reconhecimento está ativo. |
+| **Main power cables (− and +)** | Low-voltage warning from the Pi firmware (`get_throttled` or hwmon `rpi_volt`). Without that sensor: `sem-sensor`. Alternate path: `THROTTLED_FILE`. |
+| **Brain / main computer** | CPU temperature, load and uptime. Hot = attention; critical = failure. |
+| **Data cables (camera/visor → computer)** | `/dev/video<N>` exists and the camera delivers an image. |
+| **Protective casing** | Impact sensor (fall/hit): stops the motors and emits 3 soft beeps (~900 Hz, 30% duty, not deafening). State is `atencao` for 30 s after a fall. Also monitors internal temperature (wheels stop and vision is reduced when it heats up). |
+| **Visor / camera** | Camera open, faces in the last scan, whether recognition is active. |
 
-Terminal: `structure` (todas as peças), `structure map` (o desenho em texto) e `structure power|brain|datalink|casing|visor` (uma peça). O `status` mostra `estrutura=...` e a pergunta falada *“como você está?”* cita só o que não está bem.
+Terminal: `structure` (all parts), `structure map` (the drawing as text) and `structure power|brain|datalink|casing|visor` (one part). `status` shows `estrutura=...`, and the spoken question *"how are you?"* mentions only what is not OK.
 
-## Novidades da 2.0.0 (robô autônomo)
+### Movement safety
 
-| Capacidade | Como funciona |
-|---|---|
-| **Conversar** | Fica ouvindo (Vosk PT-BR no próprio Pi). Diga *“ILrDOS, …”*; depois de falar ele aceita respostas por 10 s sem repetir o nome. Comandos conhecidos são entendidos localmente (funciona sem PC); o resto vai para o Ollama no PC. Sem PC, ainda obedece comandos e se apresenta. |
-| **Falar** | TTS do PC (GLaDOS/Kokoro, porta 5050) e `espeak` local como reserva. |
-| **Se mexer** | Ponte H + sonar HC-SR04. Ele encara quem fala/está na frente (`track`), se aproxima parando longe e passeia sozinho (`roam`). Limites de segurança na seção abaixo. |
-| **IoT** | `ilrdos-iot.txt`: HTTP local (Tasmota, Shelly, Home Assistant…), MQTT e relés em GPIO, mais regras (*chegou alguém → liga a luz*). |
-| **Rostos** | SFace (OpenCV): guarda só vetores numéricos, nunca fotos. Cumprimenta pelo nome e dispara regras por pessoa. |
-| **Autonomia** | Cumprimenta, rastreia, passeia, regula visão pelo calor, reinicia Wi‑Fi e avisa falando quando algo falha. |
+- Every movement has a deadline (max 3 s) and stops by itself if the daemon or network goes down.
+- Speed is limited (`MOTOR_MAX_SPEED`, default 60%). Reverse is shorter and slower (no rear sensor).
+- Moving forward, the sonar stops the robot below `SONAR_STOP_CM`, and **no sonar reading = it does not move**. Autonomous roaming only exists with sonar.
+- **Movement respects the drawn structure:** accumulated rotation is counted and limited to `MAX_TWIST_DEG` (default 270°) so the power cables (−/+) and the visor data cable don't get stretched. At the limit it only turns back the other way. `untwist` undoes the twist; `untwist zero` resets it after you check the cables by hand. Twist is estimated by time (no encoder) and saved in `TWIST_FILE`.
+- Smooth start and stop on a smoothstep curve, like GLaDOS's chassis hanging from cables (`MOTOR_RAMP_MS`). Direction reversal only after a pause (`REVERSE_SETTLE_MS`).
+- The visor sits at the end of a long body and looks only forward, so turns use a ramp 50% longer and reverse is slow and short (30%, 1 s).
+- After an impact on the casing it does not move for `IMPACT_LOCKOUT_MS`. **A fall detected by the casing sensor stops the motors immediately** and emits a soft audible alert (3 × 220 ms at ~900 Hz, 5 s between alerts).
+- Low voltage on the power cables or critical heat in the main computer = it does not move.
+- `stop` always wins over everything.
+- Speech is treated as data: the language model can only trigger actions from the allowed list, under the same limits.
+- **Test first with the wheels off the ground** and keep a physical battery switch within reach.
+- The HC-SR04 uses 5 V: connect ECHO to the Pi through a voltage divider (e.g. 1 kΩ + 2 kΩ) to avoid burning the GPIO.
 
-Configuração: `ilrdos-robot.txt` (pinos, PC, limites), `ilrdos-iot.txt` (dispositivos e regras) e `ilrdos-fleet.txt` (outros robôs) na partição BOOT (ou `/etc/ilrdos/` no Pi OS). Exemplos comentados em `os/board/ilrdos/`.
+### Faces and privacy (biometric data)
 
-### Falas que ele entende sem o PC
-*“inicia o aspirador”*, *“aspirador, volta pra base”*, *“pare tudo”*, *“anda pra frente dois segundos”*, *“gira pra esquerda noventa graus”*, *“pare”*, *“acende a luz da sala”*, *“desliga o ventilador”*, *“quem sou eu?”*, *“quem está aqui?”*, *“quem você conhece?”*, *“guarde meu rosto”*, *“esqueça meu rosto”*, *“como você está?”*.
+- Enrollment requires consent: via terminal (`face enroll Maria`) or by voice, when it asks the name, repeats that it will store it, and requires you to say **"eu confirmo"** ("I confirm"). It only enrolls with **one** person in front of it. It never enrolls strangers on its own.
+- Data stays on the SD card (`ilrdos-faces.db` on BOOT; `/var/lib/ilrdos/faces.db` on Pi OS), permission 0600. Deleting the file deletes everything. `face forget <name|all>` via terminal; by voice only *"forget my face"* (and only if it is recognizing you).
+- Recognition **is not authentication**: `sensitive=1` devices (doors, gates…) only obey the authenticated terminal — never voice, AI, rules or face (a photo could fool the camera).
+- At fairs/schools, notify people and enroll only those who agree (LGPD treats biometrics as sensitive data; minors need guardian authorization).
+- `SEND_NAMES_TO_LLM=0` prevents names from reaching Ollama.
 
-### Rostos e privacidade (dado biométrico)
-- Cadastro só com consentimento: pelo terminal (`face enroll Maria`) ou por voz, quando ele pergunta o nome, repete que vai guardar e exige você dizer **“eu confirmo”**. Só cadastra com **uma** pessoa na frente. Nunca cadastra desconhecidos sozinho.
-- Fica no cartão SD (`ilrdos-faces.db` na BOOT; `/var/lib/ilrdos/faces.db` no Pi OS), permissão 0600. Apagar o arquivo apaga tudo. `face forget <nome|all>` pelo terminal; por voz só *“esqueça meu rosto”* (e só se ele estiver te reconhecendo).
-- O reconhecimento **não é autenticação**: dispositivos `sensitive=1` (portas, portões…) só obedecem ao terminal autenticado, nunca a voz, IA, regras ou rosto (uma foto enganaria a câmera).
-- Em feira/escola, avise as pessoas e só cadastre quem concordar (LGPD trata biometria como dado sensível; menores precisam de autorização dos responsáveis).
-- `SEND_NAMES_TO_LLM=0` impede que os nomes cheguem ao Ollama.
+### Phrases understood without the PC
 
-### Segurança do movimento
-Todo movimento tem prazo (máx. 3 s) e para sozinho se o daemon/rede cair; velocidade limitada (`MOTOR_MAX_SPEED`, padrão 60%); ré mais curta e lenta (sem sensor traseiro); para a frente o sonar para o robô abaixo de `SONAR_STOP_CM` e **sonar sem leitura = não anda**; **movimento respeita a estrutura do desenho**: o giro acumulado é contado e limitado a `MAX_TWIST_DEG` (padrão 270°) para os cabos de energia -/+ e de dados do visor não esticarem (no limite só gira para o lado de volta; `untwist` desfaz a torção, `untwist zero` zera depois de conferir os cabos à mão); partida e parada suaves em curva smoothstep, como a carcaça da GLaDOS (pendurada por cabos, balança devagar e sem tranco; `MOTOR_RAMP_MS`); inversão de sentido só depois de uma pausa (`REVERSE_SETTLE_MS`); depois de uma batida no casco não move por `IMPACT_LOCKOUT_MS`; tensão baixa nos cabos de energia ou calor crítico no computador principal = não anda (a torção é estimada por tempo, sem encoder, e fica salva em `TWIST_FILE`); **autopercepção do corpo**: o robô sente cada peça do desenho em primeira pessoa (`structure`, "como você está?", "você é consciente?"), e essa sensação entra no contexto da conversa; ele é honesto ao dizer que tem um modelo de si mesmo, não que prova consciência; no desenho o visor fica na ponta de um corpo longo e olha só para a frente, então giros usam rampa 50% mais longa e a ré é lenta e curta (30%, 1 s); **casa e indústria**: além de Wi-Fi (HTTP/MQTT/Home Assistant) e relés GPIO, controla por cabo equipamentos Modbus (TCP e RS-485/RTU, com o estado conferido de volta e intervalo mínimo entre comandos), lê sensores em cabo (contatos de porta/janela e presença em GPIO, temperatura 1-Wire, registradores Modbus: `sensor ...`, `iot read`, \"qual a temperatura da caldeira?\") e liga atuadores Bluetooth LE declarados; máquinas com `confirm=1` só ligam por voz com \"eu confirmo\" e nunca por regra ou pelo modelo; celulares, roteadores e computadores são sempre recusados; o ILrDOS não substitui parada de emergência nem intertravamentos de segurança; passeio autônomo só existe com sonar; `pare`/`stop` vencem tudo; calor crítico para as rodas; **queda detectada pelo sensor do casco para os motores imediatamente** e emite alerta sonoro suave (3 × 220 ms a ~900 Hz, intervalo de 5 s entre alertas). Fala é tratada como dado: o modelo de linguagem só consegue ações da lista permitida, com os mesmos limites. **Teste primeiro com as rodas no ar** e mantenha um interruptor físico de bateria à mão. O sonar HC-SR04 usa 5 V: ligue o ECHO ao Pi por divisor de tensão (ex.: 1 kΩ + 2 kΩ) para não queimar o GPIO.
+*"start the vacuum"*, *"vacuum, go back to the dock"*, *"stop everything"*, *"move forward two seconds"*, *"turn left ninety degrees"*, *"stop"*, *"turn on the living room light"*, *"turn off the fan"*, *"who am I?"*, *"who is here?"*, *"who do you know?"*, *"save my face"*, *"forget my face"*, *"how are you?"*
 
-### Comandos novos do terminal
-`fleet list|status [nome]|stop all|<robô|grupo> start|stop|pause|dock`, `face list|who|enroll <nome>|forget <nome|all>|cancel`, `move forward|back|left|right [ms] [vel]`, `turn left|right [graus]`, `untwist [zero]`, `stop`, `iot list|<disp> on|off|toggle`, `say <texto>`, `hear <texto>` (simula uma fala ouvida), `voice status`, `structure [map|power|brain|datalink|casing|visor]`, `impact` (estado do sensor de queda), `impact test` (dispara alerta manualmente), `autonomy motion off|track|roam`.
+(The built-in phrases are in Brazilian Portuguese.)
 
-### Teste sem hardware
-`tests/sim-test.sh` sobe o daemon em `--simulate` e exercita conversa, movimento, sonar, IoT, regras, cadastro/reconhecimento de rosto e rastreamento.
+### Home and industry
 
-## O que já existia (1.x)
+Besides Wi-Fi (HTTP/MQTT/Home Assistant) and GPIO relays, it controls wired Modbus equipment (TCP and RS-485/RTU, with state read back and a minimum interval between commands), reads wired sensors (door/window contacts and presence on GPIO, 1-Wire temperature, Modbus registers: `sensor ...`, `iot read`, *"what is the boiler temperature?"*) and switches declared Bluetooth LE actuators. Machines with `confirm=1` only start by voice with "eu confirmo" and never by rule or by the model. Phones, routers and computers are always refused.
 
-- Serviço Linux que inicia com o Raspberry Pi.
-- Padrões de LED `idle`, `listen`, `think`, `speak`, `alert` e `off`.
-- Console remoto para Windows pela rede local, com autenticação por desafio HMAC-SHA256.
-- Comandos permitidos: `help`, `status`, `eye <estado>`, `vision status`, `vision scan`, `autonomy on|off|status` e `exit`.
-- Autonomia (v1.1.0): o daemon reage a rostos e cuida de si (calor, Wi‑Fi, câmera) sozinho; veja `os/README.md`.
-- Detector facial YuNet em C++/OpenCV; nenhuma imagem é salva (desde a 2.0.0 também identifica rostos cadastrados com consentimento).
-- Ponte de voz opcional em Python: Vosk + Silero VAD no Pi, Ollama no PC e TTS GLaDOS remoto com `espeak` como alternativa.
-- O assistente usa contexto curto em memória e responde com foco educativo; o texto transcrito segue apenas para o Ollama configurado na rede local.
-- Nenhum comando de shell é executado pela rede.
-- Modo `--simulate` para demonstrar sem o hardware conectado.
+**ILrDOS does not replace emergency stops or safety interlocks.**
 
-O daemon e o controle do robô permanecem em C++; a ponte de voz usa Python porque reaproveita as bibliotecas de áudio/Vosk do pacote Pi. Ela não controla GPIO diretamente: envia somente comandos permitidos ao daemon autenticado.
+### Version history (1.x)
 
-## Teste rápido no computador
+- Linux service that starts with the Raspberry Pi.
+- LED patterns `idle`, `listen`, `think`, `speak`, `alert` and `off`.
+- Windows remote console over the local network, with HMAC-SHA256 challenge authentication.
+- Allowed commands: `help`, `status`, `eye <state>`, `vision status`, `vision scan`, `autonomy on|off|status` and `exit`.
+- Autonomy (v1.1.0): the daemon reacts to faces and looks after itself (heat, Wi-Fi, camera); see `os/README.md`.
+- YuNet face detector in C++/OpenCV; no image is saved (since 2.0.0 it also identifies faces enrolled with consent).
+- Optional Python voice bridge: Vosk + Silero VAD on the Pi, Ollama on the PC, and remote GLaDOS TTS with `espeak` as fallback.
+- The assistant uses short in-memory context and answers with an educational focus; transcribed text goes only to the Ollama instance configured on the local network.
+- No shell command is executed over the network.
+- `--simulate` mode to demo without the hardware connected.
 
-Linux com `g++`, headers do Linux e OpenSSL de desenvolvimento:
+The daemon and robot control remain in C++; the voice bridge uses Python because it reuses the audio/Vosk libraries from the Pi package. It does not control GPIO directly: it only sends allowed commands to the authenticated daemon.
+
+---
+
+## 2. Quick Start
+
+### Simulation mode on Linux (`--simulate`)
+
+Requires Linux with `g++`, Linux headers and OpenSSL development files:
 
 ```sh
 cd robot/ilrdos
@@ -138,11 +112,13 @@ openssl rand -hex 32 > /tmp/ilrdos-token
 ./build/ilrdosd --simulate --bind 127.0.0.1 --port 4317 --token-file /tmp/ilrdos-token
 ```
 
-Em outro terminal, execute `./build/ilrdos-client 127.0.0.1 4317`, digite o token e teste `status`, `eye alert` e `exit`.
+In another terminal, run `./build/ilrdos-client 127.0.0.1 4317`, type the token, and try `status`, `eye alert` and `exit`.
 
-## Instalar no Raspberry Pi Zero 2 W
+To exercise the whole flow without hardware, `tests/sim-test.sh` starts the daemon in `--simulate` and tests conversation, movement, sonar, IoT, rules, face enrollment/recognition and tracking.
 
-Use Raspberry Pi OS 64-bit e uma rede Wi‑Fi privada. Copie `robot/ilrdos` para o Pi e rode:
+### Native install on the Raspberry Pi Zero 2 W
+
+Use Raspberry Pi OS 64-bit and a private Wi-Fi network. Copy `robot/ilrdos` to the Pi and run:
 
 ```sh
 sudo apt update
@@ -152,49 +128,163 @@ cd robot/ilrdos
 hostname -I
 ```
 
-O instalador compila o serviço no próprio Pi, instala o modelo YuNet e uma unidade `systemd`. OpenCV 4 é necessário para a detecção; sem ele, o daemon continua funcionando, mas responde que a visão não está compilada. Conecte uma câmera USB compatível com V4L2 em `/dev/video0`; o código não grava a imagem.
+The installer builds the service on the Pi itself, installs the YuNet model and a `systemd` unit. OpenCV 4 is required for detection; without it the daemon keeps working but reports that vision is not compiled. Connect a V4L2-compatible USB camera at `/dev/video0`; the code never records the image.
 
-**Nota 2.0.0:** a conversa agora é nativa no daemon C++ (veja acima); a ponte Python `voice/` abaixo é o caminho antigo e não deve rodar junto (ambas usariam o microfone).
+**Wiring** (per the original `FIACAO.md`): GPIO BCM 18 to the eye LED and BCM 23 to the red LED, always with a 220 Ω series resistor; common GND. Never connect an LED without a resistor.
 
-O modelo de conversa não está dentro dos ZIPs e o Pi Zero 2 W não foi configurado para rodar um LLM grande. A voz usa Ollama no computador da feira. Para instalar a ponte no Pi:
+**Configuration** lives on the BOOT partition (or `/etc/ilrdos/` on Pi OS). Commented examples are in `os/board/ilrdos/`:
+
+- `ilrdos-robot.txt` — pins, PC, limits
+- `ilrdos-iot.txt` — devices and rules
+- `ilrdos-fleet.txt` — other robots
+
+To read the token on the Pi without changing it: `sudo cat /etc/ilrdos/token`. Do not show it on a projector or send it by chat.
+
+### Voice and TTS setup
+
+> **Note (2.0.0):** conversation is now native in the C++ daemon. The Python `voice/` bridge below is the legacy path and must not run at the same time (both would use the microphone).
+
+The conversation model is not inside the ZIPs, and the Pi Zero 2 W is not set up to run a large LLM. Voice uses Ollama on the fair's computer. To install the bridge on the Pi:
 
 ```sh
 ./scripts/install-voice-pi.sh
 sudo nano /etc/ilrdos/voice.env
 ```
 
-Troque `ILRDOS_PC_IP` pelo IP do PC. No PC, inicie Ollama, baixe o modelo indicado em `ILRDOS_OLLAMA_MODEL` (`qwen2.5:7b-instruct` por padrão) e permita acesso apenas pela rede Wi‑Fi privada da feira. Depois:
+Replace `ILRDOS_PC_IP` with the PC's IP. On the PC, start Ollama, pull the model named in `ILRDOS_OLLAMA_MODEL` (`qwen2.5:7b-instruct` by default) and allow access only from the private Wi-Fi network. Then:
 
 ```sh
 sudo systemctl enable --now ilrdos-voice
 sudo journalctl -u ilrdos-voice -f
 ```
 
-O instalador da voz baixa o modelo Vosk PT-BR pequeno (~40 MB) da distribuição oficial porque ele não está anexado e instala o ONNX Silero VAD enviado. O TTS GLaDOS remoto na porta 5050 é opcional; sem ele, o Pi tenta `espeak`. Os modelos de fonemização/GLaDOS anexados são em inglês; eles não alteram a personalidade das respostas nem oferecem fala PT-BR adequada.
+The voice installer downloads the small Vosk PT-BR model (~40 MB) from the official distribution, since it is not attached, and installs the supplied Silero VAD ONNX. The remote GLaDOS TTS on port 5050 is optional; without it the Pi tries `espeak`. The attached phonemization/GLaDOS models are English; they do not change the personality of the answers nor provide adequate PT-BR speech.
 
-Para usar a voz GLaDOS original no PC, extraia `glados-feira.zip`, coloque `glados.onnx` e `phomenizer_en.onnx` em `models/TTS/` junto aos arquivos JSON/PKL do ZIP, e execute:
-
-```bat
-robot\ilrdos\scripts\start-glados-tts-windows.bat C:\caminho\para\glados-feira
-```
-
-O serviço usa os pesos de voz GLaDOS e responde ao endpoint que a ponte do Pi já chama. É apenas a voz: a personalidade ILrDOS vem do prompt do Ollama. Esse TTS foi treinado para inglês; a qualidade da pronúncia em português pode ser limitada. No Windows, permita a porta 5050 somente na rede privada local.
-
-O arquivo Kokoro também pode ser usado no PC: coloque `kokoro-v1.0.fp16.onnx`, `kokoro-voices-v1.0.bin` (do anexo anterior) e `phomenizer_en.onnx` em `models/TTS/`; então execute:
+**Original GLaDOS voice on the PC:** extract `glados-feira.zip`, put `glados.onnx` and `phomenizer_en.onnx` in `models/TTS/` together with the ZIP's JSON/PKL files, and run:
 
 ```bat
-robot\ilrdos\scripts\start-kokoro-tts-windows.bat C:\caminho\para\glados-feira
+robot\ilrdos\scripts\start-glados-tts-windows.bat C:\path\to\glados-feira
 ```
 
-No Pi, configure `ILRDOS_TTS_VOICE=af_alloy` em `/etc/ilrdos/voice.env` e reinicie `ilrdos-voice.service`. Para voltar à voz GLaDOS, use `ILRDOS_TTS_VOICE=glados` com o iniciador GLaDOS. Kokoro também usa fonemização em inglês e não é otimizado para o Pi Zero 2 W.
+The service uses the GLaDOS voice weights and answers the endpoint the Pi bridge already calls. It is only the voice: the ILrDOS personality comes from the Ollama prompt. This TTS was trained for English, so Portuguese pronunciation may be limited. On Windows, allow port 5050 only on the private local network.
 
-Para consultar o token no Pi sem alterá-lo: `sudo cat /etc/ilrdos/token`. Não o mostre no telão nem envie por chat.
+**Kokoro on the PC:** put `kokoro-v1.0.fp16.onnx`, `kokoro-voices-v1.0.bin` and `phomenizer_en.onnx` in `models/TTS/`, then run:
 
-Fiação conforme o arquivo original `FIACAO.md`: GPIO BCM 18 ao LED do olho e BCM 23 ao LED vermelho, sempre com resistor de 220 Ω em série; GND comum. Não conecte LED diretamente sem resistor.
+```bat
+robot\ilrdos\scripts\start-kokoro-tts-windows.bat C:\path\to\glados-feira
+```
 
-## Cliente Windows
+On the Pi, set `ILRDOS_TTS_VOICE=af_alloy` in `/etc/ilrdos/voice.env` and restart `ilrdos-voice.service`. To return to the GLaDOS voice, use `ILRDOS_TTS_VOICE=glados` with the GLaDOS launcher. Kokoro also uses English phonemization and is not optimized for the Pi Zero 2 W.
 
-No Windows, abra o **Developer Command Prompt for Visual Studio** e execute:
+---
+
+## 3. Using ILrDOS as a C++20 Library
+
+ILrDOS is an open-source (MIT), **header-only** C++20 library (`include/ilrdos/`), and `ilrdosd` is just a program that uses it. Any project can use the robot structure, the fleet, IoT, etc. as an API.
+
+### CMake `FetchContent`
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(ilrdos GIT_REPOSITORY https://github.com/V0rtexLinux/ILrDOS.git GIT_TAG v2.2.0)
+FetchContent_MakeAvailable(ilrdos)
+
+add_executable(my_robot main.cpp)
+target_link_libraries(my_robot PRIVATE ilrdos::ilrdos)
+```
+
+```cpp
+#include <ilrdos/ilrdos.hpp>
+```
+
+### Installed package
+
+Alternatively, install it (`cmake --install build-cmake`) and use:
+
+```cmake
+find_package(ilrdos CONFIG REQUIRED)
+```
+
+### CMake options
+
+`ILRDOS_WITH_OPENCV`, `ILRDOS_WITH_ALSA`, `ILRDOS_WITH_VOSK`, `ILRDOS_BUILD_DAEMON`. The only mandatory dependency is OpenSSL. See [CONTRIBUTING.md](CONTRIBUTING.md) to modify and contribute.
+
+---
+
+## 4. Fleet Automation Example and Remote Terminal
+
+### Fleet: ILrDOS coordinating other robots (2.2.0)
+
+ILrDOS commands **other robots**: vacuums, mops, lawn mowers, pool robots and industrial machines (AGVs, conveyors, arms, forklifts). It does not pilot each robot; it sends high-level commands over the channel the robot already has and coordinates who works where and when. The actions are the same for every brand: **start**, **stop**, **pause** and **dock** (return to base/charge).
+
+| Channel | Used for |
+|---|---|
+| `http` | Home Assistant, Roborock/Xiaomi via integration, any local API |
+| `mqtt` | Valetudo (START/STOP/PAUSE/HOME patterns), Tasmota, ESPHome |
+| `modbus` / `rtu` | PLCs, AGVs, conveyors, industrial robots (TCP or RS-485 by cable) |
+| `ble` | Toy robots and small Bluetooth LE robots |
+
+Configuration goes in `ilrdos-fleet.txt` (BOOT, or `/etc/ilrdos/fleet.txt`; commented example in `os/board/ilrdos/ilrdos-fleet.txt.example`):
+
+```
+robot vacuum  mqtt host=192.168.1.10 topic=valetudo/vacuum/BasicControlCapability/operation/set class=vacuum zone=home alias=vacuum
+robot mop     http start=http://192.168.1.20/start stop=http://192.168.1.20/stop dock=http://192.168.1.20/dock class=mop zone=home alias=mop
+robot agv1    modbus host=192.168.1.40 unit=1 coil_start=0 coil_stop=1 class=agv zone=aisle_a alias=agv
+group cleaning vacuum,mop alias=cleaning,house
+rule empty -> vacuum start          # nobody in sight: start cleaning
+rule arrive any -> vacuum dock      # someone arrived: vacuum returns to its base
+rule arrive unknown -> agv1 stop    # unknown person in the area: stop the AGV
+```
+
+**What coordination does**
+
+- **Voice, no PC:** *"start the vacuum"*, *"tell the mop to clean"*, *"vacuum, go back to base"*, *"how is the vacuum doing?"*, *"clean the house"* (group), *"stop everything"* / *"emergency"* (stops the whole fleet at once).
+- **Presence rules:** the robot sees and hears the house and decides: everyone leaves, the vacuum starts; someone arrives, it returns to base.
+- **Zones (`zone=`):** two robots in the same zone don't work together (vacuum and mop in the same room, two AGVs in the same aisle). The second waits for the first to stop or to pass `max_run` minutes.
+- **Groups:** one command for several robots; group `stop` and `stop everything` run in parallel, so an offline robot doesn't delay the others.
+
+**Fleet safety**
+
+- **`stop`, `pause` and `dock` always apply**, from any origin (voice, rule, AI, terminal), with no confirmation or minimum interval: they are the safe direction. Every robot must declare `start` and `stop`.
+- **`start` of heavy machinery** (industrial `class=`, agv, amr, arm, conveyor, forklift, cnc, machine…), of **lawn mowers** (blade) or of any robot with `confirm=1` only happens by voice with **"eu confirmo"** (one robot at a time) or through the authenticated terminal. Never by automatic rule, by the AI model's say-so, or by group.
+- **`sensitive=1`:** only the authenticated terminal can start the robot.
+- Phones, routers and computers are never accepted; addresses must be local network only; only robots declared in the file exist (no URLs coming from speech or the network).
+- The displayed state is that of the last command, or what the robot itself reports (`status=` / `status_reg=`); text coming from the robot is treated as data.
+- **ILrDOS does not replace emergency stops, light curtains or interlocks.** Fleet `stop` is a network command and can fail if the robot is offline; in industry, safety remains in hardware.
+
+### Terminal commands
+
+| Command | Purpose |
+|---|---|
+| `fleet list` / `fleet status [name]` | List robots / show state |
+| `fleet stop all` | Stop the entire fleet |
+| `fleet <robot\|group> start\|stop\|pause\|dock` | Command a robot or group |
+| `face list\|who\|enroll <name>\|forget <name\|all>\|cancel` | Face management |
+| `move forward\|back\|left\|right [ms] [speed]` | Timed movement |
+| `turn left\|right [degrees]` | Rotate |
+| `untwist [zero]` | Undo cable twist (`zero` resets the counter) |
+| `stop` | Stop motion |
+| `iot list\|<device> on\|off\|toggle` | IoT devices |
+| `say <text>` | Speak text |
+| `hear <text>` | Simulate heard speech |
+| `voice status` | Voice state |
+| `structure [map\|power\|brain\|datalink\|casing\|visor]` | Body parts |
+| `impact` / `impact test` | Impact sensor state / trigger alert manually |
+| `autonomy motion off\|track\|roam` | Motion autonomy mode |
+
+### Remote terminal: Linux
+
+Connect with the C++ client (built by `scripts/build-linux.sh`):
+
+```sh
+./build/ilrdos-client 192.168.1.50 4317
+```
+
+Replace `192.168.1.50` with the address shown by `hostname -I` on the Raspberry Pi. The client asks for the token without displaying it.
+
+### Remote terminal: Windows
+
+Open the **Developer Command Prompt for Visual Studio** and run:
 
 ```bat
 cd robot\ilrdos
@@ -202,17 +292,27 @@ scripts\build-windows.bat
 build\ILrDOS-Terminal.exe 192.168.1.50 4317
 ```
 
-Troque `192.168.1.50` pelo endereço exibido por `hostname -I` no Raspberry Pi. O cliente pede o token sem exibi-lo. MSVC/Visual Studio Build Tools com SDK do Windows são necessários para gerar o `.exe`.
+Replace `192.168.1.50` with the address shown by `hostname -I` on the Raspberry Pi. The client asks for the token without displaying it. MSVC/Visual Studio Build Tools with the Windows SDK are required to build the `.exe`.
 
-## Segurança para a feira
+---
 
-- Mantenha Pi e computador na mesma rede privada sob seu controle, de preferência um hotspot dedicado com senha WPA2/WPA3.
-- Não faça port-forward da porta 4317 nem use Wi‑Fi público.
-- O token é validado por desafio HMAC e não é enviado pela rede; limite os comandos a estados do olho e leitura de status.
-- O protocolo não cifra o conteúdo da sessão. Use-o apenas numa rede local confiável.
-- O serviço recusa um arquivo de token legível por grupo/outros e limita tentativas de autenticação por endereço.
-- O Vosk transcreve áudio no Pi; perguntas em texto e contexto de detecção facial seguem para o Ollama/TTS configurado no PC. Nenhum frame é enviado ou salvo.
+## 5. Security Notes
 
-## Arquivos de entrada
+- Keep the Pi and the computer on the same private network under your control, preferably a dedicated hotspot with a WPA2/WPA3 password.
+- Do not port-forward port 4317 and do not use public Wi-Fi.
+- The token is validated by HMAC challenge and is never sent over the network.
+- The protocol does **not** encrypt session content. Use it only on a trusted local network.
+- The service refuses a token file readable by group/others and rate-limits authentication attempts per address.
+- Vosk transcribes audio on the Pi; text questions and face-detection context go to the Ollama/TTS configured on the PC. No frame is sent or saved.
+- No shell command is ever executed over the network.
 
-Os arquivos incluem YuNet para rostos e Silero VAD para atividade de voz, ambos integrados. O Parakeet v2 agora tem encoder e decoder, mas ainda falta o joiner v2 correspondente; os pesos v3 enviados também não formam um conjunto completo. Não misture o joiner v3 com o v2. O `vision_encoder_fp16` é apenas um encoder visual, sem o modelo de linguagem necessário para descrever imagens. GLaDOS e Kokoro podem sintetizar fala no PC, mas usam fonemização em inglês. A personalidade ILrDOS é definida pelo prompt do Ollama. O reconhecimento PT-BR continua usando Vosk baixado separadamente.
+---
+
+## 6. Input Files and Models
+
+- **Included/integrated:** YuNet (faces) and Silero VAD (voice activity).
+- **Parakeet v2** now has an encoder and decoder, but the matching v2 joiner is still missing; the v3 weights provided do not form a complete set either. Do not mix the v3 joiner with v2.
+- `vision_encoder_fp16` is only a visual encoder, without the language model needed to describe images.
+- **GLaDOS and Kokoro** can synthesize speech on the PC but use English phonemization.
+- The **ILrDOS personality** is defined by the Ollama prompt.
+- **PT-BR recognition** keeps using Vosk, downloaded separately.
