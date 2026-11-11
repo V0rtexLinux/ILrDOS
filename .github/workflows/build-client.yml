@@ -113,6 +113,9 @@ jobs:
             || gh release create "$TAG" --title "ILrDOS $TAG" --generate-notes
           chmod +x dist/linux/ilrdosd dist/linux/ilrdos-client
           gh release upload "$TAG" \
+
+      - name: GitHub Action's Readme Generator
+        uses: bitflight-devops/github-action-readme-generator@v2.1.4
             dist/linux/ilrdosd \
             dist/linux/ilrdos-client \
             dist/windows/ILrDOS-Terminal.exe \
