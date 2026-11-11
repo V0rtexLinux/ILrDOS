@@ -1,0 +1,48 @@
+name: Publicar pacote (GitHub Packages)
+
+# Publica o ILrDOS como pacote NuGet no GitHub Packages. É isso que aparece na
+# seção "Packages" do repositório (o GitHub Packages não tem formato vcpkg).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Instalar dependências
+        run: scripts/ci-install-deps.sh --cmake g++ libssl-dev pkg-config
+
+      - name: Instalar a biblioteca num diretório de staging
+        run: |
+          cmake -S . -B build-pkg -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PWD/packaging/nuget/stage" \
+            -DILRDOS_BUILD_DAEMON=OFF -DILRDOS_WITH_OPENCV=OFF -DILRDOS_WITH_ALSA=OFF
+          cmake --install build-pkg
+
+      - name: Empacotar
+        run: |
+          VERSION="$(head -n1 VERSION | tr -d '[:space:]')"
+          echo "Versão: $VERSION"
+          dotnet pack packaging/nuget/ILrDOS.csproj -c Release -o out \
+            -p:Version="$VERSION" \
+            -p:RepositoryCommit="$GITHUB_SHA"
+          unzip -l out/*.nupkg | head -30
+
+      - name: Publicar no GitHub Packages
+        run: |
+          dotnet nuget push "out/*.nupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --skip-duplicate

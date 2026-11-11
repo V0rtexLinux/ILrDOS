@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Projeto só de empacotamento: gera um .nupkg com os headers do ILrDOS
+       e o pacote CMake (find_package(ilrdos CONFIG)). Não compila código .NET. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NoWarn>$(NoWarn);NU5128;NU5105</NoWarn>
+
+    <PackageId>ILrDOS</PackageId>
+    <Version Condition="'$(Version)' == ''">0.0.0</Version>
+    <Authors>V0rtexLinux</Authors>
+    <Description>ILrDOS: runtime C++20 header-only para robôs (estrutura, fala, visão, IoT e frota). Use com CMake: find_package(ilrdos CONFIG) com CMAKE_PREFIX_PATH apontando para a pasta ilrdos/ deste pacote.</Description>
+    <PackageTags>cpp;cpp20;header-only;robotics;cmake;vcpkg</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/V0rtexLinux/ILrDOS</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/V0rtexLinux/ILrDOS</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <StageDir Condition="'$(StageDir)' == ''">$(MSBuildThisFileDirectory)stage</StageDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- conteúdo do "cmake --install" (include/ + lib/cmake/ilrdos/ + LICENSE) -->
+    <None Include="$(StageDir)/**/*" Pack="true" PackagePath="ilrdos/%(RecursiveDir)" />
+    <None Include="$(MSBuildThisFileDirectory)../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>
