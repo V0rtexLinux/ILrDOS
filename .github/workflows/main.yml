@@ -165,28 +165,24 @@ jobs:
       contents: write
 
     steps:
-      - name: Ler versão
-        id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Baixar artefatos Linux
+      - name: Baixar artefatos da imagem
         uses: actions/download-artifact@v4
         with:
-          name: ILrDOS-${{ steps.ver.outputs.version }}-pizero2w
-          path: dist/linux
+          pattern: ILrDOS-*-pizero2w
+          merge-multiple: true      # tudo direto em dist/, sem subpasta por artefato
+          path: dist
 
-      - name: Baixar artefato Windows
-        uses: actions/download-artifact@v4
-        with:
-          name: ILrDOS-${{ steps.ver.outputs.version }}-windows-x64
-          path: dist/windows
+      - name: Conferir arquivos
+        run: |
+          ls -la dist
+          ls dist/*.img.xz dist/*.sha256
 
       - name: Publicar na Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
           gh release view "$TAG" > /dev/null 2>&1 \
             || gh release create "$TAG" --title "ILrDOS $TAG" --generate-notes
-          chmod +x dist/linux/ilrdosd dist/linux/ilrdos-client
-          gh release upload "$TAG" \
+          gh release upload "$TAG" dist/*.img.xz dist/*.sha256 --clobber
