@@ -12,6 +12,7 @@ on:
       - "cmake/**"
       - "tests/consumer/**"
       - "CMakeLists.txt"
+      - "scripts/ci-install-deps.sh"
       - "VERSION"
       - ".github/workflows/library.yml"
 
@@ -24,10 +25,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar dependências
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends g++ cmake libssl-dev pkg-config
+      - name: Instalar dependências (só o que falta, com retentativas)
+        run: scripts/ci-install-deps.sh --cmake g++ libssl-dev pkg-config
 
       - name: Configurar, compilar e instalar
         run: |
