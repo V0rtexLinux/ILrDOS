@@ -2,6 +2,44 @@
 
 Runtime do robô em C++ (Raspberry Pi OS ou a imagem própria em `os/`). Desde a 2.0.0 o robô fala, ouve, anda, controla dispositivos IoT, conversa, cadastra e reconhece rostos — tudo decidido pelo próprio robô. A arquitetura alvo é o Raspberry Pi Zero 2 W e os GPIO 18 (olho) / 23 (alerta vermelho) descritos no material original.
 
+## Frota: o ILrDOS coordenando outros robôs (2.2.0)
+
+O ILrDOS agora comanda **outros robôs**: aspiradores, esfregões, cortadores de grama, robôs de piscina e também máquinas de indústria (AGVs, esteiras, braços, empilhadeiras). Ele não pilota cada robô; manda comandos de alto nível pelo canal que o robô já tem e coordena quem trabalha onde e quando. As ações são sempre as mesmas, para qualquer marca: **start** (iniciar), **stop** (parar), **pause** (pausar) e **dock** (voltar para a base/carregar).
+
+| Canal | Serve para |
+|---|---|
+| `http` | Home Assistant, Roborock/Xiaomi via integração, qualquer API local |
+| `mqtt` | Valetudo (padrões START/STOP/PAUSE/HOME), Tasmota, ESPHome |
+| `modbus` / `rtu` | CLPs, AGVs, esteiras, robôs industriais (TCP ou RS-485 por cabo) |
+| `ble` | Robôs de brinquedo e pequenos robôs Bluetooth LE |
+
+Configuração em `ilrdos-fleet.txt` (BOOT, ou `/etc/ilrdos/fleet.txt`; exemplo comentado em `os/board/ilrdos/ilrdos-fleet.txt.example`):
+
+```
+robot aspirador mqtt host=192.168.1.10 topic=valetudo/aspirador/BasicControlCapability/operation/set class=aspirador zone=casa alias=aspirador
+robot esfregao  http start=http://192.168.1.20/start stop=http://192.168.1.20/stop dock=http://192.168.1.20/dock class=esfregao zone=casa alias=esfregao,mop
+robot agv1      modbus host=192.168.1.40 unit=1 coil_start=0 coil_stop=1 class=agv zone=corredor_a alias=agv
+group limpeza aspirador,esfregao alias=limpeza,casa
+rule empty -> aspirador start          # ninguém à vista: manda limpar
+rule arrive any -> aspirador dock      # chegou alguém: o aspirador volta para a base
+rule arrive unknown -> agv1 stop       # desconhecido na área: para o AGV
+```
+
+**O que a coordenação faz**
+- **Voz, sem PC:** *“inicia o aspirador”*, *“manda o esfregão limpar”*, *“aspirador, volta pra base”*, *“como está o aspirador?”*, *“limpa a casa”* (grupo), *“pare tudo”* / *“emergência”* (para a frota inteira ao mesmo tempo).
+- **Regras por presença:** o robô vê e ouve a casa e decide: sai todo mundo, o aspirador começa; chega alguém, ele volta para a base.
+- **Zonas (`zone=`):** dois robôs da mesma zona não trabalham juntos (aspirador e esfregão na mesma sala, dois AGVs no mesmo corredor). O segundo espera o primeiro parar ou passar de `max_run` minutos.
+- **Grupos:** um comando para vários robôs; o `stop` de grupo e o `pare tudo` vão em paralelo, então um robô fora do ar não atrasa os outros.
+- **Terminal:** `fleet list`, `fleet status [nome]`, `fleet stop all`, `fleet <robô|grupo> start|stop|pause|dock`.
+
+**Segurança da frota**
+- **`stop`, `pause` e `dock` valem sempre**, de qualquer origem (voz, regra, IA, terminal), sem confirmação nem intervalo mínimo: são a direção segura. Todo robô precisa declarar `start` e `stop`.
+- **`start` de máquina pesada** (`class=` industrial, agv, amr, braço, esteira, empilhadeira, cnc, máquina…), de **cortador de grama** (lâmina) ou de robô com `confirm=1` só acontece por voz com **“eu confirmo”** (um robô por vez) ou pelo terminal autenticado. Nunca por regra automática, por marca do modelo de IA nem por grupo.
+- **`sensitive=1`:** só o terminal autenticado inicia o robô.
+- Celulares, roteadores e computadores nunca entram; endereços só da rede local; só existem os robôs declarados no arquivo (nada de URL vinda de fala ou da rede).
+- O estado mostrado é o do último comando, ou o que o próprio robô informar (`status=`/`status_reg=`); textos vindos do robô são tratados como dado.
+- **O ILrDOS não substitui parada de emergência, cortina de luz nem intertravamento.** O `stop` da frota é um comando de rede e pode falhar se o robô estiver fora do ar; em indústria, a segurança continua em hardware.
+
 ## Estrutura do robô (2.1.0)
 
 O OS segue o desenho do projeto. Cada peça vira uma entrada de `src/structure.hpp` com estado (`ok`, `atencao`, `falha` ou `sem-sensor`):
@@ -33,10 +71,10 @@ Terminal: `structure` (todas as peças), `structure map` (o desenho em texto) e 
 | **Rostos** | SFace (OpenCV): guarda só vetores numéricos, nunca fotos. Cumprimenta pelo nome e dispara regras por pessoa. |
 | **Autonomia** | Cumprimenta, rastreia, passeia, regula visão pelo calor, reinicia Wi‑Fi e avisa falando quando algo falha. |
 
-Configuração: `ilrdos-robot.txt` (pinos, PC, limites) e `ilrdos-iot.txt` (dispositivos e regras) na partição BOOT (ou `/etc/ilrdos/` no Pi OS). Exemplos comentados em `os/board/ilrdos/`.
+Configuração: `ilrdos-robot.txt` (pinos, PC, limites), `ilrdos-iot.txt` (dispositivos e regras) e `ilrdos-fleet.txt` (outros robôs) na partição BOOT (ou `/etc/ilrdos/` no Pi OS). Exemplos comentados em `os/board/ilrdos/`.
 
 ### Falas que ele entende sem o PC
-*“anda pra frente dois segundos”*, *“gira pra esquerda noventa graus”*, *“pare”*, *“acende a luz da sala”*, *“desliga o ventilador”*, *“quem sou eu?”*, *“quem está aqui?”*, *“quem você conhece?”*, *“guarde meu rosto”*, *“esqueça meu rosto”*, *“como você está?”*.
+*“inicia o aspirador”*, *“aspirador, volta pra base”*, *“pare tudo”*, *“anda pra frente dois segundos”*, *“gira pra esquerda noventa graus”*, *“pare”*, *“acende a luz da sala”*, *“desliga o ventilador”*, *“quem sou eu?”*, *“quem está aqui?”*, *“quem você conhece?”*, *“guarde meu rosto”*, *“esqueça meu rosto”*, *“como você está?”*.
 
 ### Rostos e privacidade (dado biométrico)
 - Cadastro só com consentimento: pelo terminal (`face enroll Maria`) ou por voz, quando ele pergunta o nome, repete que vai guardar e exige você dizer **“eu confirmo”**. Só cadastra com **uma** pessoa na frente. Nunca cadastra desconhecidos sozinho.
@@ -49,7 +87,7 @@ Configuração: `ilrdos-robot.txt` (pinos, PC, limites) e `ilrdos-iot.txt` (disp
 Todo movimento tem prazo (máx. 3 s) e para sozinho se o daemon/rede cair; velocidade limitada (`MOTOR_MAX_SPEED`, padrão 60%); ré mais curta e lenta (sem sensor traseiro); para a frente o sonar para o robô abaixo de `SONAR_STOP_CM` e **sonar sem leitura = não anda**; **movimento respeita a estrutura do desenho**: o giro acumulado é contado e limitado a `MAX_TWIST_DEG` (padrão 270°) para os cabos de energia -/+ e de dados do visor não esticarem (no limite só gira para o lado de volta; `untwist` desfaz a torção, `untwist zero` zera depois de conferir os cabos à mão); partida e parada suaves em curva smoothstep, como a carcaça da GLaDOS (pendurada por cabos, balança devagar e sem tranco; `MOTOR_RAMP_MS`); inversão de sentido só depois de uma pausa (`REVERSE_SETTLE_MS`); depois de uma batida no casco não move por `IMPACT_LOCKOUT_MS`; tensão baixa nos cabos de energia ou calor crítico no computador principal = não anda (a torção é estimada por tempo, sem encoder, e fica salva em `TWIST_FILE`); **autopercepção do corpo**: o robô sente cada peça do desenho em primeira pessoa (`structure`, "como você está?", "você é consciente?"), e essa sensação entra no contexto da conversa; ele é honesto ao dizer que tem um modelo de si mesmo, não que prova consciência; no desenho o visor fica na ponta de um corpo longo e olha só para a frente, então giros usam rampa 50% mais longa e a ré é lenta e curta (30%, 1 s); **casa e indústria**: além de Wi-Fi (HTTP/MQTT/Home Assistant) e relés GPIO, controla por cabo equipamentos Modbus (TCP e RS-485/RTU, com o estado conferido de volta e intervalo mínimo entre comandos), lê sensores em cabo (contatos de porta/janela e presença em GPIO, temperatura 1-Wire, registradores Modbus: `sensor ...`, `iot read`, \"qual a temperatura da caldeira?\") e liga atuadores Bluetooth LE declarados; máquinas com `confirm=1` só ligam por voz com \"eu confirmo\" e nunca por regra ou pelo modelo; celulares, roteadores e computadores são sempre recusados; o ILrDOS não substitui parada de emergência nem intertravamentos de segurança; passeio autônomo só existe com sonar; `pare`/`stop` vencem tudo; calor crítico para as rodas; **queda detectada pelo sensor do casco para os motores imediatamente** e emite alerta sonoro suave (3 × 220 ms a ~900 Hz, intervalo de 5 s entre alertas). Fala é tratada como dado: o modelo de linguagem só consegue ações da lista permitida, com os mesmos limites. **Teste primeiro com as rodas no ar** e mantenha um interruptor físico de bateria à mão. O sonar HC-SR04 usa 5 V: ligue o ECHO ao Pi por divisor de tensão (ex.: 1 kΩ + 2 kΩ) para não queimar o GPIO.
 
 ### Comandos novos do terminal
-`face list|who|enroll <nome>|forget <nome|all>|cancel`, `move forward|back|left|right [ms] [vel]`, `turn left|right [graus]`, `untwist [zero]`, `stop`, `iot list|<disp> on|off|toggle`, `say <texto>`, `hear <texto>` (simula uma fala ouvida), `voice status`, `structure [map|power|brain|datalink|casing|visor]`, `impact` (estado do sensor de queda), `impact test` (dispara alerta manualmente), `autonomy motion off|track|roam`.
+`fleet list|status [nome]|stop all|<robô|grupo> start|stop|pause|dock`, `face list|who|enroll <nome>|forget <nome|all>|cancel`, `move forward|back|left|right [ms] [vel]`, `turn left|right [graus]`, `untwist [zero]`, `stop`, `iot list|<disp> on|off|toggle`, `say <texto>`, `hear <texto>` (simula uma fala ouvida), `voice status`, `structure [map|power|brain|datalink|casing|visor]`, `impact` (estado do sensor de queda), `impact test` (dispara alerta manualmente), `autonomy motion off|track|roam`.
 
 ### Teste sem hardware
 `tests/sim-test.sh` sobe o daemon em `--simulate` e exercita conversa, movimento, sonar, IoT, regras, cadastro/reconhecimento de rosto e rastreamento.

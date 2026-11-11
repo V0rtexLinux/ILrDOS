@@ -28,7 +28,7 @@ while :; do
   console: porta 4317 (aplicativo ILrDOS-Terminal)
   daemon:  $DAEMON
   token:   arquivo ilrdos-token na partição BOOT
-  config:  ilrdos-robot.txt e ilrdos-iot.txt (BOOT)
+  config:  ilrdos-robot.txt, ilrdos-iot.txt e ilrdos-fleet.txt (BOOT)
 
 BANNER
 	sleep 10
