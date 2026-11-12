@@ -30,8 +30,9 @@ inline const char* partStateName(PartState state) {
     }
 }
 
-// Identificadores fixos das peças do desenho (ordem do desenho: energia → cérebro → dados → casco → visor).
-enum class PartId { Power, Brain, DataLink, Casing, Visor };
+// Identificadores fixos das peças do desenho (ordem do desenho: energia → chassi vertebral → cérebro →
+// dados → casco → detector de gás → chassi facial/visor).
+enum class PartId { Power, ChassisVertebral, Brain, DataLink, Casing, GasDetector, Visor };
 
 struct Part {
     PartId id;
@@ -62,6 +63,9 @@ struct StructureProbes {
     // Torção estimada dos cabos (energia -/+ e dados do visor) e o limite do movimento; nullptr = sem controle de torção.
     std::function<double()> cableTwistDeg;
     std::function<int()> cableTwistLimitDeg;
+    // Mini-bots do detector de gás carbônico (fogo), ligados ao sinalizador/ativador do chassi vertebral.
+    // nullptr = sem sensor instalado ainda.
+    std::function<bool()> gasAlarm;
 };
 
 class RobotStructure {
@@ -83,14 +87,14 @@ public:
         }
     }
 
-    // As cinco peças do desenho, sempre nesta ordem.
+    // As sete peças do desenho, sempre nesta ordem (segue o desenho, da base ao chassi facial).
     std::vector<Part> parts() const {
         const HealthSnapshot health = probes_.health ? probes_.health() : HealthSnapshot{};
         Part pw = power();
         Part dl = dataLink(health);
         applyTwist(pw);   // os cabos de energia e os de dados correm juntos pelo corpo: torcem juntos
         applyTwist(dl);
-        return {pw, brain(health), dl, casing(health), visor(health)};
+        return {pw, chassisVertebral(), brain(health), dl, casing(health), gasDetector(), visor(health)};
     }
 
     // Motivo para o robô NÃO se mover agora (vazio = pode mover): tensão baixa nos cabos de energia ou
@@ -183,8 +187,9 @@ public:
 
     // Desenho em texto, para o banner e para `structure map`.
     static const char* map() {
-        return "[cabos de energia -/+] -> [cerebro/computador principal] <- [cabos de dados] <- [visor/camera]; "
-               "[casco protetor] envolve o cerebro";
+        return "[suporte/base + cabos de energia -/+] -> [chassi vertebral] -> [computador central/cerebro] "
+               "<- [cabo de dados de visao] <- [chassi facial: visor/camera]; "
+               "[casco protetor] envolve o cerebro; [detector de gas carbonico] aciona os mini-bots";
     }
 
 private:
@@ -205,10 +210,12 @@ private:
     static const char* spokenName(PartId id) {
         switch (id) {
             case PartId::Power: return "os cabos de energia";
-            case PartId::Brain: return "o computador principal";
+            case PartId::ChassisVertebral: return "o chassi vertebral";
+            case PartId::Brain: return "o computador central";
             case PartId::DataLink: return "os cabos de dados da câmera";
             case PartId::Casing: return "o casco";
-            default: return "o visor";
+            case PartId::GasDetector: return "o detector de gás";
+            default: return "o chassi facial";
         }
     }
 
@@ -225,7 +232,7 @@ private:
     // Raspberry Pi: o firmware avisa quando a tensão do 5 V cai (cabo fino, fonte fraca, bateria baixa).
     // Duas fontes aceitas: get_throttled (bits 0 e 16) ou o hwmon "rpi_volt" (in0_lcrit_alarm).
     Part power() const {
-        Part part{PartId::Power, "power", "cabos de eletricidade principais (-/+)", PartState::Unknown, {}};
+        Part part{PartId::Power, "power", "cabos principais de energia (-/+)", PartState::Unknown, {}};
         if (cfg_.simulate && !std::filesystem::exists(cfg_.throttledFile)) {
             part.detail = "simulado; sem leitura de tensão";
             return part;
@@ -268,9 +275,42 @@ private:
         return std::nullopt;
     }
 
-    // ---------------------------------------------------------------- cérebro / computador principal
+    // ---------------------------------------------------------------- chassi vertebral
+    // Liga o suporte/base e os cabos de energia e dados ao computador central e ao chassi facial
+    // (como no desenho). Sem sensor próprio: reflete se a torção dos cabos que passam por ele está ok.
+    Part chassisVertebral() const {
+        Part part{PartId::ChassisVertebral, "backbone", "chassi vertebral", PartState::Ok,
+                  "liga o suporte/base ao computador central e ao chassi facial"};
+        if (probes_.cableTwistDeg && probes_.cableTwistLimitDeg) {
+            const double twist = probes_.cableTwistDeg();
+            const int limit = std::max(1, probes_.cableTwistLimitDeg());
+            if (std::abs(twist) >= 0.8 * limit) {
+                part.state = PartState::Warn;
+                part.detail += "; cabos internos perto do limite de torção";
+            }
+        } else {
+            part.state = PartState::Unknown;
+            part.detail += " (sem sensor de torção)";
+        }
+        return part;
+    }
+
+    // ---------------------------------------------------------------- detector de gás carbônico (fogo)
+    // Sinalizador/ativador dos mini-bots ligados ao detector, conforme o desenho.
+    Part gasDetector() const {
+        Part part{PartId::GasDetector, "gas", "detector de gas carbonico (fogo)", PartState::Unknown,
+                   "sem sensor de gas nesta placa"};
+        if (probes_.gasAlarm) {
+            const bool alarm = probes_.gasAlarm();
+            part.state = alarm ? PartState::Fail : PartState::Ok;
+            part.detail = alarm ? "gas/fogo detectado; mini-bots sinalizados" : "sem gas carbonico detectado";
+        }
+        return part;
+    }
+
+    // ---------------------------------------------------------------- computador central / cérebro
     Part brain(const HealthSnapshot& health) const {
-        Part part{PartId::Brain, "brain", "cerebro/computador principal", PartState::Ok, {}};
+        Part part{PartId::Brain, "brain", "computador central (cerebro)", PartState::Ok, {}};
         std::ostringstream out;
         if (health.haveTemp) out << "CPU " << std::fixed << std::setprecision(1) << health.tempC << "C";
         else out << "CPU sem leitura de temperatura";
@@ -296,7 +336,7 @@ private:
 
     // ---------------------------------------------------------------- cabos de transmissão de dados: câmera/visor → computador principal
     Part dataLink(const HealthSnapshot& health) const {
-        Part part{PartId::DataLink, "datalink", "cabos de transmissao de dados (visor -> computador)", PartState::Ok, {}};
+        Part part{PartId::DataLink, "datalink", "cabo de dados de visao (visor -> computador central)", PartState::Ok, {}};
         const std::string node = cfg_.videoDevRoot + "/video" + std::to_string(cfg_.cameraIndex);
         if (cfg_.simulate) {
             part.detail = "simulado (video" + std::to_string(cfg_.cameraIndex) + ")";
@@ -362,7 +402,7 @@ private:
 
     // ---------------------------------------------------------------- visor / câmera
     Part visor(const HealthSnapshot& health) const {
-        Part part{PartId::Visor, "visor", "visor/camera", PartState::Ok, {}};
+        Part part{PartId::Visor, "visor", "chassi facial (visor/camera)", PartState::Ok, {}};
         std::ostringstream out;
         if (cfg_.simulate) {
             part.detail = "simulado";

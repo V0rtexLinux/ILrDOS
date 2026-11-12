@@ -42,6 +42,9 @@ int main() {
             else if (line == "STOP") { robotState = "stopped"; reply = "OK"; }
             else if (line == "PAUSE") reply = "ERR sem pausa neste robo";
             else if (line == "STATUS") reply = "OK " + robotState;
+            else if (line == "LUZ_ON") reply = "OK luz ligada";
+            else if (line == "ANDAR:50") reply = "OK";
+            else if (line == "GARRA") reply = "ERR garra travada";
             reply += "\n";
             send(c, reply.data(), reply.size(), 0);
             close(c);
@@ -51,7 +54,10 @@ int main() {
     const std::string cfg = "/tmp/ilrdos-diy-fleet.txt";
     {
         std::ofstream f(cfg);
-        f << "robot carrinho diy host=127.0.0.1 port=" << port << " class=carrinho alias=meu_carrinho,carrinho interval=0\n";
+        f << "robot carrinho diy host=127.0.0.1 port=" << port << " class=carrinho alias=meu_carrinho,carrinho interval=0 cmd=acende_luz:LUZ_ON cmd=andar_meio:ANDAR:50 cmd=fecha_garra:GARRA cmd=perigo:LUZ_ON cmd_confirm=perigo\n";
+        f << "robot cmd_ruim diy host=127.0.0.1 cmd=a;b:X\n";                                          // sem ':' válido / nome inválido
+        f << "robot cmd_stop diy host=127.0.0.1 cmd=stop:X\n";                                         // nome reservado
+        f << "robot cmd_http http start=http://192.168.1.5/a stop=http://192.168.1.5/b cmd=x:Y\n";                                                        // cmd só no diy
         f << "robot pc_do_joao diy host=127.0.0.1 port=" << port << " class=computador\n";        // deve ser recusado
         f << "robot externo diy host=8.8.8.8 port=7777 class=carrinho\n";                            // aceito no parse; recusado ao enviar
         f << "robot sem_transporte diy class=carrinho\n";                                            // sem host nem serial
@@ -73,6 +79,29 @@ int main() {
     check(robotState == "stopped", "STOP chegou ao robô", r);
     r = hub.command("externo", "start", Origin::Terminal);
     check(r.find("rede local") != std::string::npos, "endereço fora da rede local é recusado", r);
+
+    // comandos próprios
+    seen.clear();
+    r = hub.commandCustom("carrinho", "acende_luz", Origin::Terminal);
+    check(seen.size() == 1 && seen[0] == "LUZ_ON" && r.find("luz ligada") != std::string::npos, "comando próprio chega ao robô e volta a resposta", r);
+    r = hub.commandCustom("carrinho", "andar_meio", Origin::Voice);
+    check(!seen.empty() && seen.back() == "ANDAR:50", "comando próprio com argumento", r);
+    r = hub.commandCustom("carrinho", "fecha_garra", Origin::Terminal);
+    check(r.find("garra travada") != std::string::npos, "ERR do robô num comando próprio é reportado", r);
+    r = hub.commandCustom("carrinho", "inexistente", Origin::Terminal);
+    check(r.find("não tem o comando") != std::string::npos, "comando não declarado é recusado", r);
+    const auto before = seen.size();
+    r = hub.commandCustom("carrinho", "acende_luz", Origin::Auto);
+    check(seen.size() == before && r.find("só vêm da sua voz") != std::string::npos, "regra automática não manda comando próprio", r);
+    r = hub.commandCustom("carrinho", "acende_luz", Origin::Model);
+    check(seen.size() == before, "modelo de linguagem não manda comando próprio", r);
+    r = hub.commandCustom("carrinho", "perigo", Origin::Voice);
+    check(seen.size() == before && r.find("eu confirmo") != std::string::npos, "cmd_confirm: voz pede confirmação", r);
+    r = hub.confirmPending();
+    check(seen.size() == before + 1 && r.find("executado") != std::string::npos, "\"eu confirmo\" executa o comando pendente", r);
+    r = hub.commandCustom("externo", "x", Origin::Terminal);
+    check(r.find("não tem o comando") != std::string::npos, "robô sem cmd= não aceita comando próprio", r);
+    check(hub.count() == 2, "linhas com cmd= inválido foram ignoradas", std::to_string(hub.count()));
 
     run.store(false);
     robot.join();

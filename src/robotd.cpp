@@ -224,8 +224,8 @@ std::string commandReply(const std::string& raw, Services& s) {
         return "Comandos: help | status | eye idle|listen|think|speak|alert|off | vision status|scan | "
                "face list|who|enroll <nome>|forget <nome|all>|cancel | move forward|back|left|right [ms] [vel] | "
                "turn left|right [graus] | untwist [zero] | stop | iot list|read <nome>|<dispositivo> on|off|toggle | "
-               "fleet list|status [nome]|stop all|<robô|grupo> start|stop|pause|dock | say <texto> | hear <texto> | "
-               "voice status | structure [map|power|brain|datalink|casing|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
+               "fleet list|status [nome]|stop all|<robô|grupo> start|stop|pause|dock|<robô> run <comando> | say <texto> | hear <texto> | "
+               "voice status | structure [map|power|backbone|brain|datalink|casing|gas|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
                "O terminal controla somente funções autorizadas do robô.";
     }
     if (command == "status") {
@@ -250,7 +250,7 @@ std::string commandReply(const std::string& raw, Services& s) {
             const std::string part = s.structure.describe(w[1]);
             if (!part.empty()) return part;
         }
-        return "Use: structure [map|power|brain|datalink|casing|visor]";
+        return "Use: structure [map|power|backbone|brain|datalink|casing|gas|visor]";
     }
     if (!w.empty() && w[0] == "impact") {
         if (w.size() == 2 && w[1] == "test") {
@@ -291,9 +291,10 @@ std::string commandReply(const std::string& raw, Services& s) {
         if (w.size() == 2 && w[1] == "list") return s.fleet.list();
         if (w.size() == 2 && w[1] == "status") return s.fleet.list();
         if (w.size() == 3 && w[1] == "status") return s.fleet.status(w[2]);
+        if (w.size() == 4 && w[2] == "run") return s.fleet.commandCustom(w[1], w[3], Origin::Terminal);
         if (w.size() == 3 && w[1] == "stop" && w[2] == "all") return s.fleet.stopAll(Origin::Terminal);
         if (w.size() == 3) return s.fleet.command(w[1], w[2], Origin::Terminal);
-        return "Uso: fleet list | status [nome] | stop all | <robô|grupo> start|stop|pause|dock";
+        return "Uso: fleet list | status [nome] | stop all | <robô|grupo> start|stop|pause|dock | <robô> run <comando>";
     }
     if (command == "iot list") return s.iot.list();
     if (w.size() == 3 && w[0] == "iot" && w[1] == "read") return s.iot.read(w[2]);
@@ -445,6 +446,7 @@ int runServer(const Options& o) {
     };
     act.fleetInfos = [&] { return fleet.infos(); };
     act.fleet = [&](const std::string& r, const std::string& a) { return fleet.command(r, a, Origin::Voice); };
+    act.fleetCustom = [&](const std::string& r, const std::string& c) { return fleet.commandCustom(r, c, Origin::Voice); };
     act.fleetModel = [&](const std::string& r, const std::string& a) { return fleet.command(r, a, Origin::Model); };
     act.fleetStatus = [&](const std::string& r) { return fleet.status(r); };
     act.fleetStopAll = [&] { return fleet.stopAll(Origin::Voice); };

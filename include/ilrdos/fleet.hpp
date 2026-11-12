@@ -75,6 +75,10 @@ struct FleetRobot {
     std::array<std::string, 4> hex;
     // diy: robô construído pelo usuário (protocolo de linha por TCP ou serial; ver docs/DIY-ROBOTS.md)
     DiyLink diy;
+    // comandos próprios do dono (só diy): `cmd=nome:PALAVRA` na linha do robô. O nome é o que se diz/digita; a PALAVRA é o que o
+    // agente do robô recebe (e que vira um hook em cmd/<palavra>). Não mudam o estado conhecido do robô.
+    struct CustomCmd { std::string name, word; bool confirm{false}; };
+    std::vector<CustomCmd> custom;
     // estado conhecido (último comando; robôs não informam sozinhos, salvo status=/status_reg=)
     std::string state{"?"};
     Clock::time_point stateSince{}, lastCmd{};
@@ -99,6 +103,7 @@ struct FleetInfo {
     bool isGroup{false};
     bool confirm{false};
     bool sensitive{false};
+    std::vector<std::string> customs;   // nomes dos comandos próprios (voz: "carrinho, acende a luz" -> acende_a_luz)
 };
 
 class FleetHub {
@@ -153,10 +158,10 @@ public:
         std::vector<FleetInfo> out;
         const auto now = Clock::now();
         for (const auto& robot : robots_) {
-            out.push_back({robot->name, robot->aliases, stateText(*robot, now), robot->devClass, robot->zone, false, robot->confirm, robot->sensitive});
+            out.push_back({robot->name, robot->aliases, stateText(*robot, now), robot->devClass, robot->zone, false, robot->confirm, robot->sensitive, customNames(*robot)});
         }
         for (const auto& group : groups_) {
-            FleetInfo info{group.name, group.aliases, "grupo", {}, {}, true, false, false};
+            FleetInfo info{group.name, group.aliases, "grupo", {}, {}, true, false, false, {}};
             for (const auto& member : group.members) {
                 if (const FleetRobot* robot = findRobotConst(member)) {
                     info.confirm = info.confirm || robot->confirm;
@@ -213,12 +218,64 @@ public:
         return commandGroup(name, members, *parsed, origin);
     }
 
+    // Comando próprio de um robô diy (declarado com cmd=nome:PALAVRA). Só voz e terminal: regras automáticas e o modelo
+    // de linguagem nunca mandam comandos próprios. Robô sensível: só terminal. Robô com confirm=1/pesado ou comando com
+    // cmd_confirm: voz pede "eu confirmo". Vale a mesma proteção de intervalo mínimo dos outros comandos.
+    std::string commandCustom(const std::string& name, const std::string& cmdName, Origin origin, bool confirmed = false) {
+        DiyLink link;
+        std::string word;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            for (const auto& group : groups_) if (group.name == name) return "Comandos próprios são de um robô só, não de grupo.";
+            FleetRobot* robot = findRobot(name);
+            if (robot == nullptr) return "Robô desconhecido: " + name + ". Use: fleet list.";
+            if (origin != Origin::Terminal && origin != Origin::Voice) {
+                logLine("frota", "comando próprio recusado (origem automática): " + name + " " + cmdName);
+                return "Comandos próprios só vêm da sua voz ou do terminal.";
+            }
+            const FleetRobot::CustomCmd* cmd = nullptr;
+            for (const auto& item : robot->custom) if (item.name == cmdName) cmd = &item;
+            if (cmd == nullptr) {
+                std::string have;
+                for (const auto& item : robot->custom) have += (have.empty() ? "" : ", ") + item.name;
+                return prettyName(name) + " não tem o comando '" + cmdName + "'." + (have.empty() ? " Nenhum comando próprio declarado (cmd=nome:PALAVRA)." : " Tem: " + have + ".");
+            }
+            if (robot->sensitive && origin != Origin::Terminal) return "Esse robô é sensível: só o terminal autenticado pode mandar comandos a ele.";
+            if ((cmd->confirm || robot->confirm) && !confirmed && origin != Origin::Terminal) {
+                pendingName_ = name;
+                pendingCmd_ = cmd->name;
+                pendingUntil_ = Clock::now() + std::chrono::seconds(15);
+                logLine("frota", "aguardando confirmação: " + name + " -> " + cmd->name);
+                return "Esse comando pede confirmação. Para executar '" + prettyName(cmd->name) + "' em " + prettyName(name) + ", diga: eu confirmo (em até 15 segundos).";
+            }
+            const auto now = Clock::now();
+            if (robot->minIntervalMs > 0 && now - robot->lastCmd < std::chrono::milliseconds(robot->minIntervalMs)) {
+                return "Aguarde um instante antes de comandar " + prettyName(name) + " de novo (proteção do equipamento).";
+            }
+            robot->lastCmd = now;
+            link = robot->diy;
+            word = cmd->word;
+        }
+        const std::string label = prettyName(name), what = prettyName(cmdName);
+        if (simulate_) return label + ": '" + what + "' simulado.";
+        std::string reply, error;
+        if (!diyExchange(link, word, reply, error)) {
+            logLine("frota", name + " -> " + cmdName + " FALHOU: " + error);
+            return "Falha ao comandar " + label + ": " + error + ".";
+        }
+        logLine("frota", name + " -> " + cmdName + " (" + word + "): " + reply);
+        if (reply.rfind("OK", 0) != 0) return "Falha ao comandar " + label + ": o robô recusou" + (reply.size() > 4 ? ": " + cleanText(reply.substr(4), 80) : "") + ".";
+        const std::string extra = reply.size() > 3 ? cleanText(reply.substr(3), 80) : "";
+        return label + ": " + what + " executado" + (extra.empty() ? "." : " (" + extra + ").");
+    }
+
     // PARE TUDO: manda stop a todos os robôs ao mesmo tempo (um robô fora do ar não atrasa os outros).
     std::string stopAll(Origin origin) {
         std::vector<std::string> names;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             pendingName_.clear();
+            pendingCmd_.clear();
             for (const auto& robot : robots_) names.push_back(robot->name);
         }
         if (names.empty()) return "Não há robôs na frota.";
@@ -228,15 +285,18 @@ public:
     // "eu confirmo": inicia o robô que ficou esperando (até 15 s). Devolve vazio se não havia pedido da frota,
     // para a confirmação seguir para os dispositivos IoT.
     std::string confirmPending() {
-        std::string name;
+        std::string name, cmd;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (pendingName_.empty()) return {};
             const bool alive = Clock::now() <= pendingUntil_;
             name = pendingName_;
+            cmd = pendingCmd_;
             pendingName_.clear();
+            pendingCmd_.clear();
             if (!alive) return {};
         }
+        if (!cmd.empty()) return commandCustom(name, cmd, Origin::Voice, true);
         return commandOne(name, FleetAction::Start, Origin::Voice, true, false);
     }
 
@@ -321,6 +381,12 @@ public:
     }
 
 private:
+    static std::vector<std::string> customNames(const FleetRobot& robot) {
+        std::vector<std::string> out;
+        for (const auto& item : robot.custom) out.push_back(item.name);
+        return out;
+    }
+
     static std::string prettyName(std::string name) {
         std::replace(name.begin(), name.end(), '_', ' ');
         return name;
@@ -447,6 +513,7 @@ private:
                     return prettyName(name) + " é uma máquina: só inicia por pedido falado com confirmação, individualmente, ou pelo terminal.";
                 }
                 pendingName_ = name;
+                pendingCmd_.clear();
                 pendingUntil_ = Clock::now() + std::chrono::seconds(15);
                 logLine("frota", "aguardando confirmação: " + name + " -> start");
                 return "Isso inicia uma máquina. Para iniciar " + prettyName(name) + ", diga: eu confirmo (em até 15 segundos).";
@@ -518,6 +585,7 @@ private:
         if (words.size() < 3) return "uso: robot <nome> <http|mqtt|modbus|rtu|ble|diy> class=<tipo> chave=valor ...";
         auto robot = std::make_unique<FleetRobot>();
         bool portSet = false, intervalSet = false;
+        std::vector<std::string> confirmNames;
         robot->name = words[1];
         if (!validName(robot->name)) return "nome inválido (use a-z, 0-9 e _; até 24 caracteres)";
         if (nameTaken(robot->name)) return "nome repetido";
@@ -558,6 +626,20 @@ private:
             else if (key == "start_payload" || key == "stop_payload" || key == "pause_payload" || key == "dock_payload") {
                 robot->payload[static_cast<std::size_t>(*parseFleetAction(key.substr(0, key.find('_'))))] = percentDecode(value);
             }
+            else if (key == "cmd") {
+                const auto colon = value.find(':');
+                if (colon == std::string::npos) return "cmd= precisa ser nome:PALAVRA (ex.: cmd=acende_luz:LUZ_ON)";
+                FleetRobot::CustomCmd item;
+                item.name = value.substr(0, colon);
+                item.word = value.substr(colon + 1);
+                if (!validName(item.name)) return "nome de cmd= inválido (use a-z, 0-9 e _; até 24 caracteres)";
+                if (item.name == "start" || item.name == "stop" || item.name == "pause" || item.name == "dock" || item.name == "status") return "cmd= não pode usar o nome de start, stop, pause, dock ou status";
+                if (!validDiyWord(item.word)) return "a PALAVRA de cmd= usa só letras, números, _ - . :";
+                for (const auto& other : robot->custom) if (other.name == item.name) return "cmd= repetido: " + item.name;
+                if (robot->custom.size() >= 16) return "no máximo 16 comandos próprios por robô";
+                robot->custom.push_back(item);
+            }
+            else if (key == "cmd_confirm") { for (const auto& n : splitChar(value, ',')) confirmNames.push_back(n); }
             else if (key == "unit") problem = number(robot->link.unit, "unit");
             else if (key == "serial") { robot->link.tty = value; robot->diy.tty = value; }
             else if (key == "baud") { problem = number(robot->link.baud, "baud"); robot->diy.baud = robot->link.baud; }
@@ -578,6 +660,12 @@ private:
             if (!problem.empty()) return problem;
         }
         if (const std::string blocked = blockedReason(*robot); !blocked.empty()) return blocked;
+        if (!robot->custom.empty() && robot->kind != FleetRobot::Kind::Diy) return "cmd= só existe no tipo diy";
+        for (const auto& n : confirmNames) {
+            bool found = false;
+            for (auto& item : robot->custom) if (item.name == n) { item.confirm = true; found = true; }
+            if (!found) return "cmd_confirm= cita um comando que não existe: " + n;
+        }
 
         robot->heavy = heavyClass(robot->devClass);
         if (robot->heavy) robot->confirm = true;                      // máquina pesada: start só com "eu confirmo"
@@ -757,7 +845,7 @@ private:
     std::vector<FleetGroup> groups_;
     std::vector<FleetRule> rules_;
     std::deque<std::pair<std::string, FleetAction>> queue_;
-    std::string pendingName_;
+    std::string pendingName_, pendingCmd_;
     Clock::time_point pendingUntil_{};
     std::atomic<bool> running_{true};
     std::thread worker_;

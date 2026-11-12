@@ -1,0 +1,4 @@
+#!/bin/sh
+# Exemplo com argumento: cmd=andar:ANDAR:50 -> este script recebe 50 em $1 (só letras, números e _ . : -).
+echo "andando ${1:-0}% (exemplo: troque este script)"
+exit 0

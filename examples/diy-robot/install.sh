@@ -13,8 +13,11 @@ done
 
 install -m 0755 "$HERE/ilrdos_robot_agent.py" /usr/local/bin/ilrdos-robot-agent
 install -d -m 0755 /etc/ilrdos-robot
-for f in "$HERE"/hooks/*; do                         # não sobrescreve scripts que você já editou
-  [[ -e /etc/ilrdos-robot/$(basename "$f") ]] || install -m 0755 -o root -g root "$f" /etc/ilrdos-robot/
+install -d -m 0755 -o root -g root /etc/ilrdos-robot/cmd   # comandos próprios: um script por comando (cmd/<palavra>)
+for f in "$HERE"/hooks/* "$HERE"/hooks/cmd/*; do      # não sobrescreve scripts que você já editou
+  [[ -f $f ]] || continue
+  rel="${f#"$HERE"/hooks/}"
+  [[ -e /etc/ilrdos-robot/$rel ]] || install -m 0755 -o root -g root "$f" "/etc/ilrdos-robot/$rel"
 done
 install -m 0644 "$HERE/ilrdos-robot-agent.service" /etc/systemd/system/
 systemctl daemon-reload

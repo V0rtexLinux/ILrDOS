@@ -9,7 +9,8 @@ class H(socketserver.StreamRequestHandler):
         global state
         cmd = self.rfile.readline(64).decode(errors="ignore").strip()
         print("recebi:", cmd, flush=True)
-        reply = {"START": "OK", "STOP": "OK", "PAUSE": "OK", "DOCK": "OK", "STATUS": "OK "}.get(cmd, "ERR comando desconhecido")
+        word = cmd.split(":")[0]
+        reply = {"START": "OK", "STOP": "OK", "PAUSE": "OK", "DOCK": "OK", "STATUS": "OK "}.get(cmd, "OK" if word in ("LUZ_ON", "ANDAR") else "ERR comando desconhecido")
         if cmd in ("START", "STOP", "PAUSE", "DOCK"):
             state = {"START": "working", "STOP": "stopped", "PAUSE": "paused", "DOCK": "docking"}[cmd]
         if cmd == "STATUS":

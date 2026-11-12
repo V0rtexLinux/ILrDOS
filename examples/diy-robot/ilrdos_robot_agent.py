@@ -6,6 +6,7 @@ Odroid, Jetson, BeagleBone, VisionFive, mini PC x86... (ARM, x86 ou RISC-V).
 
 Protocolo (uma palavra por linha, uma linha de resposta):
     START | STOP | PAUSE | DOCK | STATUS   ->   OK | OK <estado> | ERR <motivo>
+    <PALAVRA>[:<argumento>]                 ->   comando SEU: roda o hook cmd/<palavra> (ver docs/DIY-ROBOTS.md)
 O agente não mexe no hardware: ele executa scripts SEUS na pasta de hooks (start, stop, pause, dock, status, safe).
 Cada hook é um executável qualquer (shell, Python, C...) que liga/desliga motores, GPIO, ROS, etc.
 
@@ -15,6 +16,7 @@ permitidos, hooks que só o dono pode alterar), mas parada de emergência contin
 import argparse
 import ipaddress
 import os
+import re
 import socket
 import stat
 import subprocess
@@ -24,6 +26,8 @@ import time
 
 PRIVATE = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "127.0.0.0/8"]
 STATES = ("working", "stopped", "paused", "docking")
+CUSTOM_WORD = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$")   # vira nome de arquivo em hooks/cmd/: nada de / nem ..
+CUSTOM_ARG = re.compile(r"^[A-Za-z0-9_.:-]{1,32}$")
 
 
 def log(msg):
@@ -53,13 +57,13 @@ class Robot:
     def has(self, name):
         return self.hook_path(name) is not None
 
-    def run_hook(self, name):
-        """Executa o hook sem shell. Devolve (ok, primeira linha de saída)."""
+    def run_hook(self, name, arg=None):
+        """Executa o hook sem shell (o argumento opcional vai como argv[1]). Devolve (ok, primeira linha de saída)."""
         path = self.hook_path(name)
         if path is None:
             return False, f"sem hook '{name}'"
         try:
-            done = subprocess.run([path], capture_output=True, text=True, timeout=self.hook_timeout, cwd=self.hooks)
+            done = subprocess.run([path] + ([arg] if arg else []), capture_output=True, text=True, timeout=self.hook_timeout, cwd=self.hooks)
         except subprocess.TimeoutExpired:
             return False, f"hook '{name}' demorou demais"
         except OSError as error:
@@ -98,7 +102,7 @@ class Robot:
             return "OK " + state
         action = {"START": ("start", "working"), "PAUSE": ("pause", "paused"), "DOCK": ("dock", "docking")}.get(command)
         if action is None:
-            return "ERR comando desconhecido"
+            return self.custom(command)
         hook, new_state = action
         if not self.has(hook):
             return f"ERR este robô não tem a ação {command.lower()}"
@@ -114,6 +118,30 @@ class Robot:
                 return f"ERR {command.lower()} falhou" + (": " + text if text else "")
             self.set_state(new_state)
             return "OK"
+        finally:
+            self.action_lock.release()
+
+    def custom(self, command):
+        """Comando do dono: PALAVRA ou PALAVRA:argumento -> hooks/cmd/<palavra> [argumento]. Não muda o estado do robô.
+        Só roda se o hook existir (mesmas regras de dono/permissão dos outros) e, havendo hook `safe`, só se for seguro."""
+        word, _, arg = command.partition(":")
+        word = word.lower()
+        if not CUSTOM_WORD.match(word) or ".." in word or (arg and not CUSTOM_ARG.match(arg)):
+            return "ERR comando desconhecido"
+        name = "cmd/" + word
+        if not self.has(name):
+            return "ERR comando desconhecido"
+        if not self.action_lock.acquire(timeout=3):
+            return "ERR robô ocupado"
+        try:
+            if self.has("safe"):
+                ok, text = self.run_hook("safe")
+                if not ok:
+                    return "ERR inseguro agora" + (": " + text if text else "")
+            ok, text = self.run_hook(name, arg.lower() if arg else None)
+            if not ok:
+                return f"ERR {word} falhou" + (": " + text if text else "")
+            return "OK" + (" " + text if text else "")
         finally:
             self.action_lock.release()
 

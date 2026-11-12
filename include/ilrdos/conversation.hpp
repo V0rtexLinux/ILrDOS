@@ -35,6 +35,7 @@ struct Actuators {
     // Frota: outros robôs (aspiradores, máquinas) coordenados pelo ILrDOS.
     std::function<std::vector<FleetInfo>()> fleetInfos;
     std::function<std::string(const std::string& robot, const std::string& action)> fleet;        // origem: voz
+    std::function<std::string(const std::string& robot, const std::string& cmd)> fleetCustom;   // comando próprio (cmd=) do robô diy, só voz
     std::function<std::string(const std::string& robot, const std::string& action)> fleetModel;   // marca [[fleet ...]] do modelo
     std::function<std::string(const std::string& robot)> fleetStatus;
     std::function<std::string()> fleetStopAll;
@@ -347,6 +348,18 @@ private:
                 if (anyToken(tokens, {"pare", "parar", "interrompa", "interrompe", "cancele", "cancela", "encerre", "encerra", "desliga", "desligue", "desligar", "stop"}) ||
                     (!tokens.empty() && tokens[0] == "para")) {
                     return act_.fleet(*robot, "stop");
+                }
+                if (act_.fleetCustom) {   // comandos próprios do dono: "carrinho, acende a luz" -> cmd=acende_a_luz:...
+                    std::string bestCmd;
+                    for (const auto& info : act_.fleetInfos()) {
+                        if (info.name != *robot) continue;
+                        for (const auto& cmd : info.customs) {
+                            std::string phrase = foldPt(cmd);
+                            std::replace(phrase.begin(), phrase.end(), '_', ' ');
+                            if (hasPhrase(c, phrase) && cmd.size() > bestCmd.size()) bestCmd = cmd;
+                        }
+                    }
+                    if (!bestCmd.empty()) return act_.fleetCustom(*robot, bestCmd);
                 }
                 if (anyToken(tokens, {"inicie", "inicia", "iniciar", "comece", "comeca", "comecar", "aspire", "aspira", "aspirar", "limpe", "limpa", "limpar",
                                       "liga", "ligue", "ligar", "ative", "ativa", "ativar", "aciona", "acione", "manda", "mande", "varre", "varra", "passe",

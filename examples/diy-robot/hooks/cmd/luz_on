@@ -1,0 +1,7 @@
+#!/bin/sh
+# Comando PRÓPRIO: `cmd=acende_luz:LUZ_ON` na linha do robô -> "carrinho, acende luz" ou `fleet carrinho run acende_luz`.
+# O nome do arquivo é a palavra em minúsculas (LUZ_ON -> luz_on). Com argumento (cmd=andar:ANDAR:50) ele chega em $1 (50).
+# Saia com 0 se deu certo; o que imprimir na 1ª linha volta ao GLaDOS ("OK <texto>").
+#   gpioset -c gpiochip0 22=1
+echo "luz ligada (exemplo: troque este script)"
+exit 0
