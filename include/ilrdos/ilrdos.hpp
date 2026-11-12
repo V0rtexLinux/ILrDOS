@@ -14,4 +14,4 @@
 #include <ilrdos/autonomy.hpp>
 #include <ilrdos/conversation.hpp>
 
-#define ILRDOS_VERSION_STRING "2.2.0"
+#define ILRDOS_VERSION_STRING "2.3.0"

@@ -186,7 +186,7 @@ ILrDOS is an open-source (MIT), **header-only** C++20 library (`include/ilrdos/`
 
 ```cmake
 include(FetchContent)
-FetchContent_Declare(ilrdos GIT_REPOSITORY https://github.com/V0rtexLinux/ILrDOS.git GIT_TAG v2.2.0)
+FetchContent_Declare(ilrdos GIT_REPOSITORY https://github.com/V0rtexLinux/ILrDOS.git GIT_TAG v2.3.0)
 FetchContent_MakeAvailable(ilrdos)
 
 add_executable(my_robot main.cpp)
@@ -251,6 +251,19 @@ rule arrive unknown -> agv1 stop    # unknown person in the area: stop the AGV
 - Phones, routers and computers are never accepted; addresses must be local network only; only robots declared in the file exist (no URLs coming from speech or the network).
 - The displayed state is that of the last command, or what the robot itself reports (`status=` / `status_reg=`); text coming from the robot is treated as data.
 - **ILrDOS does not replace emergency stops, light curtains or interlocks.** Fleet `stop` is a network command and can fail if the robot is offline; in industry, safety remains in hardware.
+
+### Robots you build yourself (2.3.0)
+
+Built your own robot (ESP32, Arduino, Pico)? Declare it in the fleet with the `diy` type and GLaDOS commands it by voice
+or terminal, over Wi-Fi or USB, under the same fleet safety rules (STOP always wins, `confirm=1`, zones, LAN-only):
+
+```
+robot carrinho diy host=192.168.1.60 class=carrinho alias=meu_carrinho
+robot rover diy serial=/dev/ttyACM0 baud=115200 wait=2000 class=rover
+```
+
+The protocol is one word per line (`START`, `STOP`, `PAUSE`, `DOCK`, `STATUS`) and one reply line (`OK`, `OK <state>`,
+`ERR <reason>`). Protocol, example firmware (ESP32 and Arduino) and a fake robot for testing: [docs/DIY-ROBOTS.md](docs/DIY-ROBOTS.md).
 
 ### Terminal commands
 

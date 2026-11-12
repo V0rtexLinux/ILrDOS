@@ -46,7 +46,7 @@ inline std::optional<FleetAction> parseFleetAction(const std::string& word) {
 }
 
 struct FleetRobot {
-    enum class Kind { Http, Mqtt, Modbus, Rtu, Ble };
+    enum class Kind { Http, Mqtt, Modbus, Rtu, Ble, Diy };
     std::string name;
     std::vector<std::string> aliases;   // normalizados com foldPt
     Kind kind{Kind::Http};
@@ -73,6 +73,8 @@ struct FleetRobot {
     // bluetooth LE
     std::string mac, handle, addrType{"public"};
     std::array<std::string, 4> hex;
+    // diy: robô construído pelo usuário (protocolo de linha por TCP ou serial; ver docs/DIY-ROBOTS.md)
+    DiyLink diy;
     // estado conhecido (último comando; robôs não informam sozinhos, salvo status=/status_reg=)
     std::string state{"?"};
     Clock::time_point stateSince{}, lastCmd{};
@@ -246,6 +248,7 @@ public:
         ModbusLink link;
         int reg = -1;
         FleetRobot::Kind kind{};
+        DiyLink diyLink;
         std::string last;
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -265,6 +268,7 @@ public:
             link = robot->link;
             reg = robot->statusReg;
             kind = robot->kind;
+            diyLink = robot->diy;
             last = stateText(*robot, Clock::now());
         }
         const std::string label = prettyName(name);
@@ -277,6 +281,14 @@ public:
                 if (response.ok()) return label + ": " + cleanText(response.body, 120) + " (informado pelo robô).";
                 return label + ": não consegui consultar o robô (" + (response.error.empty() ? "HTTP " + std::to_string(response.status) : response.error) + "). Último comando: " + last + ".";
             }
+        }
+        if (kind == FleetRobot::Kind::Diy) {
+            std::string reply, error;
+            if (diyExchange(diyLink, "STATUS", reply, error) && reply.rfind("OK", 0) == 0) {
+                const std::string word = reply.size() > 3 ? trim(reply.substr(3)) : "";
+                if (!word.empty()) return label + ": " + cleanText(stateName(word) == std::string("sem informação") ? word : stateName(word), 120) + " (informado pelo robô).";
+            }
+            return label + ": " + last + " (último comando; o robô não informou o estado" + (error.empty() ? "" : ": " + error) + ").";
         }
         if (reg >= 0 && (kind == FleetRobot::Kind::Modbus || kind == FleetRobot::Kind::Rtu)) {
             std::string error;
@@ -393,6 +405,7 @@ private:
             case FleetRobot::Kind::Modbus:
             case FleetRobot::Kind::Rtu: return robot.coil[i] >= 0;
             case FleetRobot::Kind::Ble: return !robot.hex[i].empty();
+            case FleetRobot::Kind::Diy: return !robot.payload[i].empty();
         }
         return false;
     }
@@ -502,7 +515,7 @@ private:
     }
 
     std::string parseRobot(const std::vector<std::string>& words) {
-        if (words.size() < 3) return "uso: robot <nome> <http|mqtt|modbus|rtu|ble> class=<tipo> chave=valor ...";
+        if (words.size() < 3) return "uso: robot <nome> <http|mqtt|modbus|rtu|ble|diy> class=<tipo> chave=valor ...";
         auto robot = std::make_unique<FleetRobot>();
         bool portSet = false, intervalSet = false;
         robot->name = words[1];
@@ -513,6 +526,7 @@ private:
         else if (words[2] == "modbus") robot->kind = FleetRobot::Kind::Modbus;
         else if (words[2] == "rtu") robot->kind = FleetRobot::Kind::Rtu;
         else if (words[2] == "ble") robot->kind = FleetRobot::Kind::Ble;
+        else if (words[2] == "diy") robot->kind = FleetRobot::Kind::Diy;
         else return "tipo desconhecido: " + words[2];
         for (std::size_t i = 3; i < words.size(); ++i) {
             const auto eq = words[i].find('=');
@@ -545,8 +559,9 @@ private:
                 robot->payload[static_cast<std::size_t>(*parseFleetAction(key.substr(0, key.find('_'))))] = percentDecode(value);
             }
             else if (key == "unit") problem = number(robot->link.unit, "unit");
-            else if (key == "serial") robot->link.tty = value;
-            else if (key == "baud") problem = number(robot->link.baud, "baud");
+            else if (key == "serial") { robot->link.tty = value; robot->diy.tty = value; }
+            else if (key == "baud") { problem = number(robot->link.baud, "baud"); robot->diy.baud = robot->link.baud; }
+            else if (key == "wait") { problem = number(robot->diy.waitMs, "wait"); robot->diy.waitMs = std::clamp(robot->diy.waitMs, 0, 5000); }
             else if (key == "parity") robot->link.parity = value.empty() ? 'N' : static_cast<char>(std::toupper(static_cast<unsigned char>(value[0])));
             else if (key == "coil_start" || key == "coil_stop" || key == "coil_pause" || key == "coil_dock") {
                 problem = number(robot->coil[static_cast<std::size_t>(*parseFleetAction(key.substr(5)))], "coil");
@@ -598,6 +613,21 @@ private:
                 }
                 for (const int coil : robot->coil) if (coil > 65535) return "coil precisa estar entre 0 e 65535";
                 if (robot->statusReg > 65535) return "status_reg precisa estar entre 0 e 65535";
+                break;
+            }
+            case FleetRobot::Kind::Diy: {
+                DiyLink& d = robot->diy;
+                d.host = robot->host;
+                d.port = portSet ? robot->port : 7777;
+                d.serial = !d.tty.empty();
+                if (d.serial) {
+                    if (!validSerialPath(d.tty)) return "serial= precisa ser /dev/ttyUSB0, /dev/ttyACM0 ou /dev/serial/...";
+                    if (baudConstant(d.baud) == B0) return "baud não suportado";
+                } else if (d.host.empty()) {
+                    return "diy precisa de host= (Wi-Fi) ou serial= (USB)";
+                }
+                if (d.port < 1 || d.port > 65535) return "porta inválida";
+                for (const auto& word : robot->payload) if (!word.empty() && !validDiyWord(word)) return "os comandos *_payload do diy usam só letras, números, _ - . :";
                 break;
             }
             case FleetRobot::Kind::Ble:
@@ -695,6 +725,12 @@ private:
             }
             case FleetRobot::Kind::Ble:
                 return bleWrite(robot.mac, robot.addrType, robot.handle, robot.hex[i], error);
+            case FleetRobot::Kind::Diy: {
+                std::string reply;
+                if (!diyExchange(robot.diy, robot.payload[i], reply, error)) return false;
+                if (reply.rfind("OK", 0) != 0) { error = "o robô recusou: " + (reply.size() > 4 ? reply.substr(4) : reply); return false; }
+                return true;
+            }
         }
         return false;
     }

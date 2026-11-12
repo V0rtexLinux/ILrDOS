@@ -1,6 +1,6 @@
 {
   "name": "ilrdos",
-  "version-string": "2.2.0",
+  "version-string": "2.3.0",
   "description": "ILrDOS: runtime C++ (header-only) para robôs — estrutura, fala, visão, IoT e frota.",
   "homepage": "https://github.com/V0rtexLinux/ILrDOS",
   "license": "MIT",

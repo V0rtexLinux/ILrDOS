@@ -25,7 +25,7 @@ using namespace ilrdos;
 namespace {
 
 constexpr char kName[] = "ILrDOS";
-constexpr char kVersion[] = "2.2.0";
+constexpr char kVersion[] = "2.3.0";
 constexpr int kDefaultPort = 4317;
 constexpr int kMaxLine = 512;
 constexpr int kClientTimeoutSeconds = 20;

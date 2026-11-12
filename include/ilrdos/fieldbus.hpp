@@ -282,4 +282,94 @@ inline bool bleWrite(const std::string& mac, const std::string& addressType, con
     return false;
 }
 
+// ── Robôs feitos pelo usuário (tipo "diy") ─────────────────────────────────────
+// Protocolo de linha, de propósito o mais simples possível para caber num Arduino/ESP32/Pico:
+//   ILrDOS -> robô : uma palavra de comando terminada em \n  (START, STOP, PAUSE, DOCK ou STATUS)
+//   robô -> ILrDOS : uma linha de resposta                   (OK | OK <estado> | ERR <motivo>)
+// O robô só é dado como "iniciado/parado" quando responde OK: nada de comando às cegas.
+// Transporte: TCP na rede local (Wi-Fi: ESP32, ESP8266, Pico W) ou serial/USB (Arduino, Pico, ESP32).
+struct DiyLink {
+    bool serial{false};
+    std::string host;          // TCP (somente rede local)
+    int port{7777};
+    std::string tty;           // serial: /dev/ttyUSB0, /dev/ttyACM0, ...
+    int baud{115200};
+    int waitMs{0};             // espera após abrir a serial (placas que reiniciam ao abrir, como o Arduino Uno)
+};
+
+inline bool validDiyWord(const std::string& word) {
+    if (word.empty() || word.size() > 32) return false;
+    return std::all_of(word.begin(), word.end(), [](char c) {
+        return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '.' || c == ':';
+    });
+}
+
+inline bool readLine(int fd, std::string& line, int timeoutMs) {
+    line.clear();
+    const auto deadline = Clock::now() + std::chrono::milliseconds(timeoutMs);
+    while (line.size() < 128) {
+        const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - Clock::now()).count();
+        if (left <= 0) return false;
+        pollfd p{fd, POLLIN, 0};
+        if (poll(&p, 1, static_cast<int>(left)) <= 0) return false;
+        char c = 0;
+        const ssize_t n = read(fd, &c, 1);
+        if (n <= 0) return false;
+        if (c == '\n') { line = trim(line); return true; }
+        if (c != '\r') line.push_back(c);
+    }
+    return false;
+}
+
+// Envia `command` + '\n' e devolve a primeira linha de resposta (já sem espaços nas pontas).
+inline bool diyExchange(const DiyLink& link, const std::string& command, std::string& reply, std::string& error) {
+    if (!validDiyWord(command)) { error = "comando inválido"; return false; }
+    int fd = -1;
+    if (link.serial) {
+        const speed_t speed = baudConstant(link.baud);
+        if (speed == B0) { error = "baud inválido"; return false; }
+        fd = open(link.tty.c_str(), O_RDWR | O_NOCTTY | O_NONBLOCK | O_CLOEXEC);
+        if (fd < 0) { error = "não consegui abrir " + link.tty; return false; }
+        termios tio{};
+        if (tcgetattr(fd, &tio) != 0) { close(fd); error = "porta serial inválida"; return false; }
+        cfmakeraw(&tio);
+        cfsetispeed(&tio, speed);
+        cfsetospeed(&tio, speed);
+        tio.c_cflag |= CLOCAL | CREAD;
+        tio.c_cflag &= ~(CSIZE | CSTOPB | PARENB | PARODD);
+        tio.c_cflag |= CS8;
+        tio.c_cc[VMIN] = 0;
+        tio.c_cc[VTIME] = 0;
+        tcsetattr(fd, TCSANOW, &tio);
+        if (link.waitMs > 0) std::this_thread::sleep_for(std::chrono::milliseconds(link.waitMs));
+        tcflush(fd, TCIOFLUSH);
+        const std::string out = command + "\n";
+        std::size_t written = 0;
+        while (written < out.size()) {
+            const ssize_t n = write(fd, out.data() + written, out.size() - written);
+            if (n <= 0) { close(fd); error = "falha ao escrever na serial"; return false; }
+            written += static_cast<std::size_t>(n);
+        }
+        tcdrain(fd);
+    } else {
+        const auto address = resolveLan(link.host, link.port, error);
+        if (!address) return false;
+        fd = connectWithTimeout(*address, 2000, error);
+        if (fd < 0) return false;
+        if (!sendAllTimeout(fd, command + "\n", 2000)) { close(fd); error = "falha ao enviar ao robô"; return false; }
+    }
+    // Aceita só linhas de resposta (ignora lixo/boot da placa até achar OK ou ERR).
+    bool got = false;
+    const auto deadline = Clock::now() + std::chrono::milliseconds(3000);
+    std::string line;
+    while (Clock::now() < deadline) {
+        if (!readLine(fd, line, 3000)) break;
+        if (line == "OK" || line.rfind("OK ", 0) == 0 || line == "ERR" || line.rfind("ERR ", 0) == 0) { got = true; break; }
+    }
+    close(fd);
+    if (!got) { error = "o robô não respondeu"; return false; }
+    reply = line;
+    return true;
+}
+
 }  // namespace ilrdos
