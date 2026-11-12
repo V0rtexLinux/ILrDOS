@@ -30,6 +30,7 @@ C++ runtime for the robot (Raspberry Pi OS or the custom image in `os/`). Since 
 
 The OS follows the project's physical design. Each part is an entry in `include/ilrdos/structure.hpp` with a specific state (`ok`, `atencao`, `falha`, or `sem-sensor`):
 
+![blueprint OF THE ILrDOS](IMAGES/20261112_1237442443380408221532067.jpg)
 
 [support/base + power cables -/+] -> [vertebral chassis] -> [central computer / brain]
 <- [vision data cable] <- [facial chassis: visor/camera]
