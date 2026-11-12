@@ -1,0 +1,4 @@
+#!/bin/sh
+# Opcional: saia com 0 se é seguro andar, com outro código se não (sensor de queda, para-choque, bateria baixa...).
+# É checado antes do START e a cada segundo enquanto o robô trabalha; se falhar, o agente chama o 'stop'.
+exit 0

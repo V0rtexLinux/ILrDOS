@@ -1,0 +1,4 @@
+#!/bin/sh
+# Opcional: apague este arquivo se o robô não tem pausa (o GLaDOS recebe "ERR este robô não tem a ação pause").
+echo "pause (exemplo)"
+exit 0

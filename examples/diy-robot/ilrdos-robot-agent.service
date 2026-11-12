@@ -1,0 +1,15 @@
+[Unit]
+Description=ILrDOS robot agent (robô feito pelo usuário)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ilrdos-robot
+ExecStart=/usr/bin/python3 /usr/local/bin/ilrdos-robot-agent --hooks /etc/ilrdos-robot
+Restart=on-failure
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

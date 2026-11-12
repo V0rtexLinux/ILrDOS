@@ -1,0 +1,4 @@
+#!/bin/sh
+# Opcional: voltar para a base. Apague se não existir.
+echo "dock (exemplo)"
+exit 0

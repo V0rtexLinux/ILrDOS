@@ -1,0 +1,9 @@
+#!/bin/sh
+# Chamado quando o GLaDOS manda START. Coloque aqui o que faz o SEU robô começar a trabalhar.
+# Saia com código 0 se deu certo; qualquer outro código vira "ERR" para o GLaDOS (a 1ª linha impressa é o motivo).
+# Exemplos (use o que o seu robô tiver):
+#   gpioset -c gpiochip0 17=1               # libgpiod: liga o pino 17 (ex.: driver dos motores)
+#   python3 /home/pi/meu_robo.py andar      # seu programa
+#   ros2 topic pub --once /cmd std_msgs/String "data: start"
+echo "start (exemplo: troque este script)"
+exit 0

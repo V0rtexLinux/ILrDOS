@@ -1,0 +1,6 @@
+#!/bin/sh
+# OBRIGATÓRIO. Chamado no STOP e quando o limite de tempo ou o hook 'safe' mandam parar.
+# Tem de desligar TUDO que se move e funcionar sempre.
+#   gpioset -c gpiochip0 17=0
+echo "stop (exemplo: troque este script)"
+exit 0

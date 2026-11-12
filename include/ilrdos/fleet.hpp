@@ -621,7 +621,7 @@ private:
                 d.port = portSet ? robot->port : 7777;
                 d.serial = !d.tty.empty();
                 if (d.serial) {
-                    if (!validSerialPath(d.tty)) return "serial= precisa ser /dev/ttyUSB0, /dev/ttyACM0 ou /dev/serial/...";
+                    if (!validSerialPath(d.tty)) return "serial= precisa ser /dev/ttyUSB0, /dev/ttyAMA0 ou /dev/serial/...";
                     if (baudConstant(d.baud) == B0) return "baud não suportado";
                 } else if (d.host.empty()) {
                     return "diy precisa de host= (Wi-Fi) ou serial= (USB)";

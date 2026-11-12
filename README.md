@@ -254,16 +254,16 @@ rule arrive unknown -> agv1 stop    # unknown person in the area: stop the AGV
 
 ### Robots you build yourself (2.3.0)
 
-Built your own robot (ESP32, Arduino, Pico)? Declare it in the fleet with the `diy` type and GLaDOS commands it by voice
-or terminal, over Wi-Fi or USB, under the same fleet safety rules (STOP always wins, `confirm=1`, zones, LAN-only):
+Built your own robot on any single-board computer with Linux (Raspberry Pi, Orange Pi, Rock, Jetson, BeagleBone, x86 mini PC...)?
+Run the small agent on it, declare the robot in the fleet with the `diy` type, and GLaDOS commands it by voice or terminal under
+the same fleet safety rules (STOP always wins, `confirm=1`, zones, LAN-only):
 
 ```
-robot carrinho diy host=192.168.1.60 class=carrinho alias=meu_carrinho
-robot rover diy serial=/dev/ttyACM0 baud=115200 wait=2000 class=rover
+robot rover diy host=192.168.1.60 class=rover alias=meu_rover
 ```
 
-The protocol is one word per line (`START`, `STOP`, `PAUSE`, `DOCK`, `STATUS`) and one reply line (`OK`, `OK <state>`,
-`ERR <reason>`). Protocol, example firmware (ESP32 and Arduino) and a fake robot for testing: [docs/DIY-ROBOTS.md](docs/DIY-ROBOTS.md).
+The agent needs only Python 3 and runs your own scripts (`start`, `stop`, optional `pause`, `dock`, `status`, `safe`) to move the
+hardware. Protocol, installer, example hooks and tests: [docs/DIY-ROBOTS.md](docs/DIY-ROBOTS.md).
 
 ### Terminal commands
 

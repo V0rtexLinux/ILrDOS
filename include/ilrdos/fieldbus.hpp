@@ -283,18 +283,18 @@ inline bool bleWrite(const std::string& mac, const std::string& addressType, con
 }
 
 // ── Robôs feitos pelo usuário (tipo "diy") ─────────────────────────────────────
-// Protocolo de linha, de propósito o mais simples possível para caber num Arduino/ESP32/Pico:
+// Protocolo de linha, de propósito o mais simples possível:
 //   ILrDOS -> robô : uma palavra de comando terminada em \n  (START, STOP, PAUSE, DOCK ou STATUS)
 //   robô -> ILrDOS : uma linha de resposta                   (OK | OK <estado> | ERR <motivo>)
 // O robô só é dado como "iniciado/parado" quando responde OK: nada de comando às cegas.
-// Transporte: TCP na rede local (Wi-Fi: ESP32, ESP8266, Pico W) ou serial/USB (Arduino, Pico, ESP32).
+// Transporte: TCP na rede local (o robô é um computador de placa única rodando o agente, ver docs/DIY-ROBOTS.md) ou serial.
 struct DiyLink {
     bool serial{false};
     std::string host;          // TCP (somente rede local)
     int port{7777};
     std::string tty;           // serial: /dev/ttyUSB0, /dev/ttyACM0, ...
     int baud{115200};
-    int waitMs{0};             // espera após abrir a serial (placas que reiniciam ao abrir, como o Arduino Uno)
+    int waitMs{0};             // espera (ms) após abrir a serial, se o outro lado precisar de tempo para ficar pronto
 };
 
 inline bool validDiyWord(const std::string& word) {
