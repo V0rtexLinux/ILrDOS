@@ -26,25 +26,32 @@ C++ runtime for the robot (Raspberry Pi OS or the custom image in `os/`). Since 
 | **Embedded self-perception** | The robot senses each part of its body in the first person and uses that in conversation. It is honest that it has a *model of itself*, not proof of consciousness. |
 | **Autonomy** | Greets, tracks, roams, adjusts vision according to heat, restarts Wi-Fi, and speaks up when something fails. |
 
-### Robot structure (2.1.0)
+### Robot structure
 
-The OS follows the project's design. Each part is an entry in `include/ilrdos/structure.hpp` with a state (`ok`, `atencao`, `falha` or `sem-sensor`):
+The OS follows the project's physical design. Each part is an entry in `include/ilrdos/structure.hpp` with a specific state (`ok`, `atencao`, `falha`, or `sem-sensor`):
 
-```
-[main power cables  - / +] --> [brain / main computer]
-[visor / camera] == data transmission cables ==> [brain / main computer]
-[protective casing] surrounds the brain
-```
 
-| Part | What the OS checks |
-|---|---|
-| **Main power cables (− and +)** | Low-voltage warning from the Pi firmware (`get_throttled` or hwmon `rpi_volt`). Without that sensor: `sem-sensor`. Alternate path: `THROTTLED_FILE`. |
-| **Brain / main computer** | CPU temperature, load and uptime. Hot = attention; critical = failure. |
-| **Data cables (camera/visor → computer)** | `/dev/video<N>` exists and the camera delivers an image. |
-| **Protective casing** | Impact sensor (fall/hit): stops the motors and emits 3 soft beeps (~900 Hz, 30% duty, not deafening). State is `atencao` for 30 s after a fall. Also monitors internal temperature (wheels stop and vision is reduced when it heats up). |
-| **Visor / camera** | Camera open, faces in the last scan, whether recognition is active. |
+[support/base + power cables -/+] -> [vertebral chassis] -> [central computer / brain]
+<- [vision data cable] <- [facial chassis: visor/camera]
+[protective casing] surrounds the brain; [carbon dioxide gas detector] triggers mini-bots
 
-Terminal: `structure` (all parts), `structure map` (the drawing as text) and `structure power|brain|datalink|casing|visor` (one part). `status` shows `estrutura=...`, and the spoken question *"how are you?"* mentions only what is not OK.
+| Part | Key | What the OS checks |
+|---|---|---|
+| **Main power cables (− and +)** | `power` | Low-voltage warning from the Pi firmware (`get_throttled`) or hwmon `rpi_volt`. Without that sensor: `sem-sensor`. |
+| **Vertebral chassis** | `backbone` | Connects the support/base and power/data cables to the central computer and facial chassis. Reflects internal cable twist status. |
+| **Central computer / brain** | `brain` | CPU temperature, load average (warns if load exceeds 1.5 × cores), and uptime. Thermal status (`normal`, `quente`, `critico`). |
+| **Vision data cables** | `datalink` | Checks if `/dev/video<N>` exists, if the camera delivers images, and monitors cable twist. |
+| **Protective casing** | `casing` | Monitors physical impact/falls (tracking impact count and time since last impact) and internal temperature. High temperature stops wheels and slows vision. |
+| **Carbon dioxide gas detector** | `gas` | Monitors gas/fire detection and triggers mini-bots linked to the vertebral chassis signal. |
+| **Facial chassis / visor** | `visor` | Camera status, face count in the last scan, and whether face recognition is active. |
+
+#### Structure Features and Behavior
+
+* **States**: Parts report states of `ok`, `atencao`, `falha`, or `sem-sensor`. The overall structure state reflects the worst part condition.
+* **Motion Blocking**: The robot refuses to move (`motionBlockReason`) if power voltage is low or if the main computer is at a critical thermal level.
+* **Cable Twist Monitoring**: Accumulated rotation of power and data cables is tracked (`cableTwistDeg`) against `cableTwistLimitDeg`. Reaching 80% of the limit triggers a warning (`atencao`) advising to use `untwist`.
+* **Interoception & Self-Awareness**: The robot senses each part of its body in first-person (`selfAwareness()`) to describe its physical state. Spoken status (`speech()`) mentions only parts that are not OK.
+* **Terminal Commands**: Use `structure` to list all parts, `structure map` to view the text drawing, and `structure <key>` (e.g., `power`, `brain`, `backbone`, `datalink`, `casing`, `gas`, `visor`) to inspect a specific part.
 
 ### Movement safety
 
