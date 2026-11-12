@@ -13,7 +13,7 @@ responde **uma linha**:
 | ILrDOS envia | Quando | Resposta |
 |---|---|---|
 | `START` / `STOP` / `PAUSE` / `DOCK` | "rover, começa", ou `fleet rover start` | `OK` ou `ERR <motivo>` |
-| `STATUS` | `fleet status rover` | `OK working` (ou `stopped`, `paused`, `docking`) |
+| `STATUS` | `fleet status rover` | `OK working` (ou `stopped`, `paused`, `docking`, `fire`, `recovering`) |
 
 O agente **não mexe no hardware**. Ele executa **scripts seus**, na pasta de hooks, em qualquer linguagem (shell, Python,
 C, ROS...). Assim o mesmo agente serve para um carrinho com ponte H, um braço, um rastreador ou o que você inventar.
@@ -25,6 +25,8 @@ C, ROS...). Assim o mesmo agente serve para um carrinho com ponte H, um braço, 
 | `pause`, `dock` | não | se não existir, o GLaDOS recebe `ERR este robô não tem a ação ...` |
 | `status` | não | imprime `working`, `stopped`, `paused` ou `docking` conforme o estado real |
 | `safe` | não | sai com 0 se é seguro andar (sensor de queda, para-choque, bateria) |
+| `gas` | não | detector de gás carbônico (fogo): 0 = ar normal, 1 = fogo, outro = falha do sensor. Ativa o protocolo de incêndio |
+| `minibot/contencao`, `minibot/extintor`, `minibot/restauracao` | só com `gas` | os 3 minibots do protocolo de incêndio (ver abaixo) |
 
 Cada hook sai com código 0 se deu certo; qualquer outro código vira `ERR` para o GLaDOS, e a primeira linha que o script
 imprime é o motivo. Exemplos prontos em `examples/diy-robot/hooks/` (com dicas de GPIO via `gpioset`, Python e ROS).
@@ -70,11 +72,27 @@ Segurança dos comandos próprios (vale para qualquer comando que você inventar
   Havendo hook `safe`, ele é checado antes de cada comando próprio. Eles não mudam o estado (working/stopped).
 - `STOP` continua vencendo tudo e não pode ser redefinido (`cmd=stop:...` é recusado).
 
+## Protocolo de incêndio (3 minibots)
+
+Com o hook `gas`, o agente consulta o detector de gás carbônico a cada segundo. Se ele indicar fogo (saída 1):
+
+1. O robô é parado (hook `stop`) e o estado vira `fire`. Daí em diante só `STOP` e `STATUS` são aceitos (`ERR incêndio em andamento`).
+2. **Minibot 1** (`minibot/contencao`) e **minibot 2** (`minibot/extintor`) rodam **na hora**, ao mesmo tempo. A contenção evita que alguém
+   perto se machuque; o extintor solta a mesma substância do extintor de incêndio pela sala. O minibot 2 se repete enquanto o gás
+   ainda indicar fogo (`--extinguish-tries`, padrão 5).
+3. Com o ar normal por `--clear-seconds` seguidos (padrão 10), o fogo é dado por apagado, o estado vira `recovering` e roda o
+   **minibot 3** (`minibot/restauracao`): troca as partes danificadas e restaura a programação.
+4. Se o minibot 3 sair com 0, o robô volta ao normal, **parado** (nunca volta sozinho a trabalhar). Se falhar, fica bloqueado até alguém
+   consertar e reiniciar o agente.
+
+Uma falha do sensor (código diferente de 0 e 1) só é registrada: não dispara o protocolo. Os scripts de exemplo só imprimem uma
+mensagem; troque-os pelo seu hardware. Teste: `tests/diy-fire-test.sh`.
+
 ## Opções do agente
 
 `--hooks` (pasta, padrão `/etc/ilrdos-robot`) · `--port` (7777) · `--bind` · `--allow` (IPs/redes que podem comandar; padrão só
 redes locais, o recomendado é só o IP do GLaDOS: `--allow 192.168.1.10`) · `--max-run` (segundos até parar sozinho, padrão 120) ·
-`--hook-timeout` (10 s).
+`--hook-timeout` (10 s) · `--fire-timeout` (120 s por minibot) · `--clear-seconds` (10) · `--extinguish-tries` (5).
 
 ## Opções da linha `robot ... diy`
 
@@ -90,4 +108,5 @@ redes locais, o recomendado é só o IP do GLaDOS: `--allow 192.168.1.10`) · `-
 - No agente: só aceita IPs de `--allow`; hooks só rodam se pertencerem a quem pode escrever neles (recusa hook com escrita
   para grupo/outros); sem shell; limite de tempo; `safe` é checado antes do START e a cada segundo; o serviço roda com
   usuário sem privilégios.
+- Incêndio: o protocolo dos 3 minibots é um auxílio, não substitui detector, extintor e corte de energia certificados no hardware.
 - **O ILrDOS não é circuito de segurança.** Mantenha parada de emergência em hardware, e hooks `stop` que funcionem sempre.

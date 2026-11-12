@@ -1,0 +1,6 @@
+#!/bin/sh
+# MINIBOT 1 - contenção: roda na hora que o fogo é detectado, junto com o minibot 2.
+# Faça o ILrDOS entrar em contenção para ninguém por perto se machucar (barreira, alarme, luz de aviso...).
+#   gpioset -c gpiochip0 23=1     # ex.: sirene
+echo "contenção (exemplo: troque este script)"
+exit 0

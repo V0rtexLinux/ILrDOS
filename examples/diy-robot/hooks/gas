@@ -1,0 +1,6 @@
+#!/bin/sh
+# Opcional: detector de gás carbônico (fogo). Chamado a cada segundo.
+# Saída 0 = ar normal, 1 = fogo detectado, qualquer outro código = falha do sensor (só registra, não dispara).
+# Se este hook existir, os 3 hooks em minibot/ passam a ser obrigatórios.
+#   exemplo com sensor digital num GPIO: [ "$(gpioget -c gpiochip0 22)" = "active" ] && exit 1
+exit 0
