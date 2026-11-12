@@ -14,7 +14,8 @@ done
 install -m 0755 "$HERE/ilrdos_robot_agent.py" /usr/local/bin/ilrdos-robot-agent
 install -d -m 0755 /etc/ilrdos-robot
 install -d -m 0755 -o root -g root /etc/ilrdos-robot/cmd   # comandos próprios: um script por comando (cmd/<palavra>)
-for f in "$HERE"/hooks/* "$HERE"/hooks/cmd/*; do      # não sobrescreve scripts que você já editou
+install -d -m 0755 -o root -g root /etc/ilrdos-robot/minibot   # protocolo de incêndio: contencao, extintor, restauracao
+for f in "$HERE"/hooks/* "$HERE"/hooks/cmd/* "$HERE"/hooks/minibot/*; do      # não sobrescreve scripts que você já editou
   [[ -f $f ]] || continue
   rel="${f#"$HERE"/hooks/}"
   [[ -e /etc/ilrdos-robot/$rel ]] || install -m 0755 -o root -g root "$f" "/etc/ilrdos-robot/$rel"

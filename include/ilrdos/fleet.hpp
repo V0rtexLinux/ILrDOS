@@ -437,6 +437,8 @@ private:
         if (state == "stopped") return "parado";
         if (state == "paused") return "pausado";
         if (state == "docking") return "voltando para a base";
+        if (state == "fire") return "incendio: minibots agindo";
+        if (state == "recovering") return "recuperando apos incendio";
         return "sem informação";
     }
 

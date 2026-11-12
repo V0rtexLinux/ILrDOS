@@ -1,0 +1,6 @@
+#!/bin/sh
+# MINIBOT 2 - extintor: solta a mesma substância do extintor de incêndio pela sala do ILrDOS.
+# É repetido enquanto o detector de gás ainda indicar fogo (até --extinguish-tries vezes).
+#   gpioset -c gpiochip0 24=1; sleep 5; gpioset -c gpiochip0 24=0     # ex.: válvula/relé do extintor
+echo "extintor (exemplo: troque este script)"
+exit 0

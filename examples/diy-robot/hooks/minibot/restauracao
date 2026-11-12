@@ -1,0 +1,7 @@
+#!/bin/sh
+# MINIBOT 3 - restauração: só roda depois que o fogo foi dado por apagado (ar normal por --clear-seconds).
+# Troque as partes danificadas por novas e restaure a programação/configuração do ILrDOS.
+# Saia com 0 só se tudo ficou normal; se sair com outro código o robô continua bloqueado.
+#   cp -a /var/lib/ilrdos-robot/backup/. /etc/ilrdos-robot/
+echo "restauração (exemplo: troque este script)"
+exit 0
