@@ -1,0 +1,279 @@
+{
+  "nome": "ILrDOS-corpo-v1",
+  "cabos": {
+    "energia_principal": {
+      "tipo": "power",
+      "capa": "vermelha(+)/preta(-)",
+      "blindagem": false,
+      "condutores": [
+        {
+          "nome": "+",
+          "corrente_a": 60
+        },
+        {
+          "nome": "-",
+          "corrente_a": 60
+        }
+      ]
+    },
+    "modbus_fabrica": {
+      "tipo": "rs485",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "A"
+        },
+        {
+          "nome": "B"
+        },
+        {
+          "nome": "GND"
+        },
+        {
+          "nome": "24V",
+          "corrente_a": 2
+        },
+        {
+          "nome": "0V",
+          "corrente_a": 2
+        }
+      ]
+    },
+    "detector_co2": {
+      "tipo": "sensor",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "VCC",
+          "corrente_a": 0.2
+        },
+        {
+          "nome": "GND",
+          "corrente_a": 0.2
+        },
+        {
+          "nome": "OUT"
+        },
+        {
+          "nome": "TEST"
+        }
+      ]
+    },
+    "dados_visao": {
+      "tipo": "lanes",
+      "lanes": 8,
+      "gbps_por_lane": 0.5,
+      "blindagem": true,
+      "descricao": "camera -> cerebro, 8 pares diferenciais (CSI/LVDS) + clock + I2C + sync + 5V",
+      "extra": 12
+    },
+    "dados_rostos": {
+      "tipo": "lanes",
+      "lanes": 4,
+      "gbps_por_lane": 0.5,
+      "blindagem": true,
+      "descricao": "sensor facial -> cerebro, 4 pares + sync + I2C",
+      "extra": 8
+    },
+    "dados_audio": {
+      "tipo": "lanes",
+      "lanes": 4,
+      "gbps_por_lane": 0.05,
+      "blindagem": true,
+      "descricao": "I2S x2 microfones + speaker, balanceado",
+      "extra": 10
+    },
+    "motores_haste": {
+      "tipo": "motor",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "M1+",
+          "corrente_a": 15
+        },
+        {
+          "nome": "M1-",
+          "corrente_a": 15
+        },
+        {
+          "nome": "M2+",
+          "corrente_a": 15
+        },
+        {
+          "nome": "M2-",
+          "corrente_a": 15
+        },
+        {
+          "nome": "M3+",
+          "corrente_a": 15
+        },
+        {
+          "nome": "M3-",
+          "corrente_a": 15
+        },
+        {
+          "nome": "enc1"
+        },
+        {
+          "nome": "enc2"
+        },
+        {
+          "nome": "enc3"
+        },
+        {
+          "nome": "fimcurso",
+          "n": 6
+        }
+      ]
+    },
+    "fita_led_vermelha": {
+      "tipo": "led",
+      "blindagem": false,
+      "condutores": [
+        {
+          "nome": "R+",
+          "corrente_a": 8
+        },
+        {
+          "nome": "R-",
+          "corrente_a": 8
+        },
+        {
+          "nome": "temp"
+        },
+        {
+          "nome": "pwm"
+        }
+      ]
+    }
+  },
+  "haste": {
+    "motores": [
+      {
+        "id": "m1",
+        "nome": "inclinacao",
+        "min": 0,
+        "max": 100,
+        "passo_max": 25
+      },
+      {
+        "id": "m2",
+        "nome": "giro",
+        "min": 0,
+        "max": 100,
+        "passo_max": 25
+      },
+      {
+        "id": "m3",
+        "nome": "avanco",
+        "min": 0,
+        "max": 100,
+        "passo_max": 25
+      }
+    ]
+  },
+  "cabeca": {
+    "led": {
+      "canal": "R",
+      "min": 0,
+      "max": 100,
+      "temp_max_c": 70
+    },
+    "camera": {
+      "modo": "mono",
+      "exposicao_fixa": true,
+      "canal": "R"
+    }
+  },
+  "barramento": {
+    "limite_corrente_a": 3.0,
+    "limite_temp_c": 80
+  },
+  "pecas": [
+    {
+      "nome": "computador central (cérebro)",
+      "cabo": "energia_principal",
+      "peso": 20
+    },
+    {
+      "nome": "RAM",
+      "cabo": "dados_visao",
+      "peso": 3
+    },
+    {
+      "nome": "SSD",
+      "cabo": "dados_visao",
+      "peso": 4
+    },
+    {
+      "nome": "HD",
+      "cabo": "dados_visao",
+      "peso": 4
+    },
+    {
+      "nome": "fonte + suporte/base",
+      "cabo": "energia_principal",
+      "peso": 10
+    },
+    {
+      "nome": "câmera",
+      "cabo": "dados_visao",
+      "peso": 10
+    },
+    {
+      "nome": "lente de vidro",
+      "cabo": "dados_visao",
+      "peso": 3
+    },
+    {
+      "nome": "sensor facial",
+      "cabo": "dados_rostos",
+      "peso": 10
+    },
+    {
+      "nome": "microfone",
+      "cabo": "dados_audio",
+      "peso": 4
+    },
+    {
+      "nome": "speaker",
+      "cabo": "dados_audio",
+      "peso": 4
+    },
+    {
+      "nome": "motor da haste (x3)",
+      "cabo": "motores_haste",
+      "peso": 30
+    },
+    {
+      "nome": "encoders e fins de curso",
+      "cabo": "motores_haste",
+      "peso": 12
+    },
+    {
+      "nome": "fita LED RGB vermelha",
+      "cabo": "fita_led_vermelha",
+      "peso": 6
+    },
+    {
+      "nome": "detector de gás carbônico",
+      "cabo": "detector_co2",
+      "peso": 6
+    },
+    {
+      "nome": "interface Modbus de fábrica",
+      "cabo": "modbus_fabrica",
+      "peso": 8
+    },
+    {
+      "nome": "relé/MOSFET do barramento",
+      "cabo": "dados_visao",
+      "peso": 5
+    },
+    {
+      "nome": "3 minibots (contenção, extintor, restauração)",
+      "cabo": "detector_co2",
+      "peso": 15
+    }
+  ]
+}

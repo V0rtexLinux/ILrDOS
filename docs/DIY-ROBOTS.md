@@ -172,6 +172,20 @@ Comandos próprios de exemplo (veja "Comandos próprios") em `examples/diy-robot
 - `visao_vermelha` liga/desliga/ajusta a fita vermelha (`cmd=visao_vermelha:VISAO_VERMELHA:80`, argumento 0 a 100).
 - `haste_mover` move a haste motorizada (`cmd=haste_mover:HASTE:30`).
 
+### Complexidade do projeto = grossura dos cabos
+
+A camada de corpo (`examples/diy-robot/body/`) liga o código ao tamanho físico dos cabos. `body.json` lista cada cabo, cada
+condutor e cada peça (com um peso). `ilrdos_body.py report` soma **peças + condutores + linhas de código do projeto / 100** e
+transforma o total em um **nível** (1 a cada 100 pontos). Quanto maior o nível, mais grossos ficam os cabos:
+
+- **Veias reservas** em paralelo: +50% de condutores por nível acima do 1 (redundância, as "veias" do chassi vertebral).
+- **Margem de corrente**: +35% de seção por nível nos condutores de potência.
+- **Armadura**: +1,5 mm de capa por nível.
+
+Com o projeto atual (nível 4) os feixes saem de 23 a 44 mm de diâmetro; cada peça ou linha nova no projeto pode subir o nível e
+engrossar o cabo no relatório. O mesmo módulo simula o chassi vertebral (corte e religação em trava), a haste (passos e fim de
+curso) e a cabeça vermelha (só canal R, limite térmico): `ilrdos_body.py sim-fogo`. Teste: `tests/diy-body-test.sh`.
+
 ## Opções do agente
 
 `--hooks` (pasta, padrão `/etc/ilrdos-robot`) · `--port` (7777) · `--bind` · `--allow` (IPs/redes que podem comandar; padrão só
