@@ -2,5 +2,15 @@
 # MINIBOT 1 - contenção: roda na hora que o fogo é detectado, junto com o minibot 2.
 # Faça o ILrDOS entrar em contenção para ninguém por perto se machucar (barreira, alarme, luz de aviso...).
 #   gpioset -c gpiochip0 23=1     # ex.: sirene
+#
+# Chassi vertebral (barramento de dados visão/rosto/áudio): corta fisicamente a passagem dos
+# 3 cabos de dados aqui, antes de qualquer outra coisa, travando em nível alto (latch) até o
+# minibot 3 (restauração) confirmar ar normal e religar. Isso evita que dado corrompido por
+# curto/calor chegue ao computador central ("cérebro") enquanto o incêndio está em curso.
+#   gpioset -c gpiochip0 25=0     # ex.: habilita (ativo-baixo) do relé/MOSFET do barramento de dados
+#
+# Também corta os motores da haste e apaga a fita LED vermelha da cabeça (esquentam e alimentam o fogo).
+#   gpioset -c gpiochip0 27=0     # ex.: desabilita o driver dos motores da haste
+#   gpioset -c gpiochip0 12=0     # ex.: apaga o canal vermelho da fita LED
 echo "contenção (exemplo: troque este script)"
 exit 0

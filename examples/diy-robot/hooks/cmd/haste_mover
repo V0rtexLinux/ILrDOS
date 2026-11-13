@@ -1,0 +1,10 @@
+#!/bin/sh
+# Comando PRÓPRIO: `cmd=haste_mover:HASTE:30` -> move a haste motorizada entre o computador central e o chassi vertebral.
+# A haste só leva estrutura e motores (os dados passam pelo chassi vertebral). $1 = ângulo/passos de 0 a 100.
+# Respeite fim de curso e parada de emergência em hardware; este script não substitui eles.
+POS="${1:-0}"
+case "$POS" in ''|*[!0-9]*) echo "posição inválida"; exit 1;; esac
+[ "$POS" -gt 100 ] && { echo "posição fora do limite"; exit 1; }
+#   gpioset -c gpiochip0 27=1       # ex.: habilita o driver dos motores da haste
+echo "haste em ${POS} (exemplo: troque este script)"
+exit 0

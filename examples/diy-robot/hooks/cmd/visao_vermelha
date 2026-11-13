@@ -1,0 +1,13 @@
+#!/bin/sh
+# Comando PRÓPRIO: `cmd=visao_vermelha:VISAO_VERMELHA:80` -> "robô, visao vermelha" ou `fleet robo run visao_vermelha`.
+# Fita LED RGB do fundo da cabeça (chassi facial): só o canal VERMELHO acende, verde e azul ficam sempre em 0.
+# $1 = intensidade de 0 a 100 (0 apaga). Sem argumento usa 60.
+# Câmera + lente de vidro à frente da fita amplificam o vermelho; calibre exposição/ganho fixos.
+LEVEL="${1:-60}"
+case "$LEVEL" in ''|*[!0-9]*) echo "intensidade inválida"; exit 1;; esac
+[ "$LEVEL" -gt 100 ] && LEVEL=100
+#   pwm vermelho:  pinctrl / gpioset no canal da fita (ex.: GPIO 12 = R, 13 = G, 18 = B)
+#   gpioset -c gpiochip0 13=0 18=0      # verde e azul sempre apagados
+#   (PWM do vermelho a $LEVEL % no GPIO 12)
+echo "visão vermelha em ${LEVEL}% (exemplo: troque este script)"
+exit 0

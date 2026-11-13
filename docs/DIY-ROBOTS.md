@@ -88,6 +88,90 @@ Com o hook `gas`, o agente consulta o detector de gás carbônico a cada segundo
 Uma falha do sensor (código diferente de 0 e 1) só é registrada: não dispara o protocolo. Os scripts de exemplo só imprimem uma
 mensagem; troque-os pelo seu hardware. Teste: `tests/diy-fire-test.sh`.
 
+## Chassi vertebral (barramento de dados como "sangue")
+
+Ideia de hardware para quem monta o robô fisicamente: os cabos de dados de visão, reconhecimento
+facial e áudio podem correr juntos por um único barramento de alta velocidade (ex.: ~1,3 Gbps,
+perto de Gigabit Ethernet) dentro do "chassi vertebral" — a peça que liga a cabeça (sensores) ao
+computador central ("cérebro"). O protocolo de incêndio já existente (`gas` + 3 minibots) é o lugar
+certo para cortar e religar esse barramento:
+
+- **Minibot 1 (contenção)** corta fisicamente o barramento (relé ou MOSFET em série nos 3 cabos de
+  dados), travado em nível alto, assim que o `gas` indica fogo — antes de qualquer outra ação. Isso
+  evita que dado corrompido por calor/curto chegue ao cérebro.
+- **Minibot 2 (extintor)** age normalmente, sem tocar no barramento.
+- **Minibot 3 (restauração)** é o único ponto que religa o barramento, e só depois que o ar está
+  normal por `--clear-seconds` seguidos; se um sensor de corrente/temperatura no próprio barramento
+  ainda indicar anomalia, o script deve sair com código diferente de 0 para manter o corte.
+
+Isso mantém a trava em hardware (latch, não software) e usa o mesmo handshake de minibots que o
+agente já implementa — nenhuma mudança no protocolo START/STOP/STATUS é necessária. Para redundância
+(duas "veias" em paralelo, bloqueio por níveis em vez de corte total), isso é trabalho de hardware
+fora do agente; os hooks acima são só o ponto de corte/religamento que o software já controla.
+
+## Anatomia física do robô (cabos grossos, haste motorizada e cabeça de visão vermelha)
+
+Esta parte descreve o desenho do robô de verdade. Tudo aqui é **hardware**: o agente só enxerga os pontos de controle
+(`gas`, `minibot/*` e `cmd/*`). Nenhuma mudança no protocolo START/STOP/STATUS.
+
+```
+ SUPORTE/BASE + FONTE ──(cabos principais + e −)──┐         ┌── Entrada de controle de fábrica (Modbus)
+        │                                          │         │   Detector de CO2 (fogo)  ──► hook `gas`
+   CASCO PROTETOR ── COMPUTADOR CENTRAL ("cérebro": RAM, SSD, HD, speaker, LED)
+                            │
+                  HASTE MOTORIZADA (preta)           ← só estrutura + motores, NÃO leva dados
+                            │
+                    CHASSI VERTEBRAL ═══ cabos grossos de visão / rosto / áudio ═══► CHASSI FACIAL (cabeça)
+                                                                                      └─ visor/câmera
+```
+
+### Cabos (todos grossos, de bancada industrial)
+
+| Cabo | Função | Sugestão de construção |
+|---|---|---|
+| Principais de energia (+ e −) | base/fonte → cérebro e motores | cobre multifilar de grande seção (ex.: 6 a 16 mm²), terminais de compressão, fusível/disjuntor DC logo na saída da fonte, capa dupla vermelha (+) e preta (−) |
+| Entrada de controle de fábrica (Modbus) | liga o robô a CLP/máquinas | RS-485 par trançado blindado, resistor de terminação de 120 Ω nas pontas, blindagem aterrada só em um lado |
+| Detector de gás carbônico (fogo) | alimenta o hook `gas` | cabo blindado curto, sensor longe do calor direto, falha do sensor só é registrada |
+| Dados de visão | câmera → cérebro | blindado, com ferrites; é o mais grosso do feixe |
+| Dados de rostos (reconhecimento facial) | câmera/sensor facial → cérebro | blindado, par dedicado |
+| Dados de áudio | microfone e speaker ↔ cérebro | blindado e afastado dos cabos de energia para evitar zumbido |
+
+Regras práticas para cabos grossos: raio mínimo de curvatura (o fio grosso não dobra apertado), alívio de tração em cada ponta
+(prensa-cabos), identificação (etiquetas e cores) e o feixe de dados **nunca** paralelo e colado ao de energia: se tiver de cruzar,
+cruze a 90°. O feixe de visão/rosto/áudio dentro do chassi vertebral é o "sangue" do barramento descrito acima.
+
+### Haste motorizada (entre o computador central e o chassi vertebral)
+
+O "cabo" preto do desenho **não é cabo**: é uma haste estrutural com motores que movimenta o corpo.
+
+- Só leva torque e estrutura. Os dados passam pelo chassi vertebral, não pela haste.
+- Motores com driver próprio (ex.: servos ou passo) alimentados pelos cabos principais, com fim de curso em cada eixo.
+- Os motores só mexem com o robô em estado normal: o hook `stop` corta o driver e, em incêndio, o minibot 1 também.
+- Parada de emergência física em série com a alimentação dos drivers (o ILrDOS não substitui isso).
+
+### Cabeça (chassi facial) e visão totalmente vermelha
+
+O chassi facial é montado nesta ordem, de trás para a frente (o visor/câmera fica na frente):
+
+1. **Fita LED RGB** no fundo da cabeça, ligada **só no canal vermelho** (verde e azul em 0), com luz forte.
+2. **Câmera** logo à frente da fita, apontada para o visor.
+3. **Lente de vidro** na frente da câmera para amplificar/concentrar o vermelho. O robô passa a ver o mundo em vermelho.
+
+Para ele continuar enxergando **corretamente** mesmo só vendo vermelho:
+
+- Use sensor **monocromático** (ou desligue a matriz de cores) e leia só o canal vermelho; assim a imagem tem luminância
+  completa e não aparece "escura demais".
+- Ajuste exposição e ganho fixos (sem balanço de branco automático) e calibre com alvos de cor conhecidos.
+- Treine/calibre o reconhecimento facial com imagens em vermelho (ou converta para tons de cinza do canal R antes de reconhecer).
+- Deixe a intensidade da fita ajustável por PWM e meça a imagem: se saturar, reduza; se ficar escura, aumente.
+- Fita forte esquenta: dissipador de alumínio, limite de corrente e sensor de temperatura; o fogo desliga a fita (minibot 1).
+- Não aponte a fita forte para os olhos de ninguém; proteja o visor com a lente e deixe a luz só dentro da cabeça.
+
+Comandos próprios de exemplo (veja "Comandos próprios") em `examples/diy-robot/hooks/cmd/`:
+
+- `visao_vermelha` liga/desliga/ajusta a fita vermelha (`cmd=visao_vermelha:VISAO_VERMELHA:80`, argumento 0 a 100).
+- `haste_mover` move a haste motorizada (`cmd=haste_mover:HASTE:30`).
+
 ## Opções do agente
 
 `--hooks` (pasta, padrão `/etc/ilrdos-robot`) · `--port` (7777) · `--bind` · `--allow` (IPs/redes que podem comandar; padrão só
