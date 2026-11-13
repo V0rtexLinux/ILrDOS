@@ -181,7 +181,7 @@ def cmd_plano(man):
             bw = f"{b['total']}× {b['nominal_a']} A ({b['polos']} polos)"
             rec = "busway no tronco (cabos só nos ramais)"
         else:
-            bw, rec = "-", "dividir em bandeja (sinal não vai em busway)"
+            bw, rec = "-", "dividir em bandeja (sinal ou potência <100 A: sem busway)"
         print(f"{nome:24} {d['od_mm']:>8}  {f'{nd} × {od} mm ({cpc} cond.)':>21} {bw:>34}  {rec}")
     print("Estimativa de dimensionamento; busway e bandejas exigem projeto elétrico e aceite do fabricante.")
     return 0

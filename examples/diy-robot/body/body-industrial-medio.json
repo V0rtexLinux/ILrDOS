@@ -1,0 +1,607 @@
+{
+  "nome": "ILrDOS-industrial-medio-v1",
+  "cabos": {
+    "energia_principal": {
+      "tipo": "power",
+      "capa": "vermelha(+)/preta(-)",
+      "blindagem": false,
+      "condutores": [
+        {
+          "nome": "L1",
+          "corrente_a": 160.0
+        },
+        {
+          "nome": "L2",
+          "corrente_a": 160.0
+        },
+        {
+          "nome": "L3",
+          "corrente_a": 160.0
+        },
+        {
+          "nome": "PE",
+          "corrente_a": 80
+        }
+      ],
+      "comprimento_m": 60,
+      "tensao_v": 400
+    },
+    "modbus_fabrica": {
+      "tipo": "rs485",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "A"
+        },
+        {
+          "nome": "B"
+        },
+        {
+          "nome": "GND"
+        },
+        {
+          "nome": "24V",
+          "corrente_a": 2
+        },
+        {
+          "nome": "0V",
+          "corrente_a": 2
+        },
+        {
+          "nome": "plc",
+          "n": 12
+        }
+      ],
+      "comprimento_m": 150
+    },
+    "detector_co2": {
+      "tipo": "sensor",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "VCC",
+          "corrente_a": 0.2
+        },
+        {
+          "nome": "GND",
+          "corrente_a": 0.2
+        },
+        {
+          "nome": "OUT"
+        },
+        {
+          "nome": "TEST"
+        }
+      ],
+      "comprimento_m": 50
+    },
+    "dados_visao": {
+      "tipo": "lanes",
+      "lanes": 8,
+      "gbps_por_lane": 0.5,
+      "blindagem": true,
+      "descricao": "camera -> cerebro, 8 pares diferenciais (CSI/LVDS) + clock + I2C + sync + 5V",
+      "extra": 16,
+      "comprimento_m": 120
+    },
+    "dados_rostos": {
+      "tipo": "lanes",
+      "lanes": 4,
+      "gbps_por_lane": 0.5,
+      "blindagem": true,
+      "descricao": "sensor facial -> cerebro, 4 pares + sync + I2C",
+      "extra": 8,
+      "comprimento_m": 120
+    },
+    "dados_audio": {
+      "tipo": "lanes",
+      "lanes": 4,
+      "gbps_por_lane": 0.05,
+      "blindagem": true,
+      "descricao": "I2S x2 microfones + speaker, balanceado",
+      "extra": 10,
+      "comprimento_m": 120
+    },
+    "motores_haste": {
+      "tipo": "motor",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "M1+",
+          "corrente_a": 100
+        },
+        {
+          "nome": "M1-",
+          "corrente_a": 100
+        },
+        {
+          "nome": "M2+",
+          "corrente_a": 100
+        },
+        {
+          "nome": "M2-",
+          "corrente_a": 100
+        },
+        {
+          "nome": "M3+",
+          "corrente_a": 100
+        },
+        {
+          "nome": "M3-",
+          "corrente_a": 100
+        },
+        {
+          "nome": "M4+",
+          "corrente_a": 100
+        },
+        {
+          "nome": "M4-",
+          "corrente_a": 100
+        },
+        {
+          "nome": "enc",
+          "n": 8
+        },
+        {
+          "nome": "fimcurso",
+          "n": 16
+        }
+      ],
+      "comprimento_m": 40,
+      "tensao_v": 400
+    },
+    "fita_led_vermelha": {
+      "tipo": "led",
+      "blindagem": false,
+      "condutores": [
+        {
+          "nome": "R+",
+          "corrente_a": 8
+        },
+        {
+          "nome": "R-",
+          "corrente_a": 8
+        },
+        {
+          "nome": "temp"
+        },
+        {
+          "nome": "pwm"
+        }
+      ],
+      "comprimento_m": 15
+    },
+    "barramento_redundante_b": {
+      "tipo": "lanes",
+      "lanes": 8,
+      "gbps_por_lane": 0.5,
+      "blindagem": true,
+      "extra": 16,
+      "descricao": "segunda veia em paralelo (visão+rosto), assume se a veia A for cortada ou falhar",
+      "comprimento_m": 140
+    },
+    "bateria_reserva_bms": {
+      "tipo": "power",
+      "blindagem": false,
+      "comprimento_m": 25,
+      "tensao_v": 400,
+      "condutores": [
+        {
+          "nome": "UPS+",
+          "corrente_a": 120
+        },
+        {
+          "nome": "UPS-",
+          "corrente_a": 120
+        },
+        {
+          "nome": "sense",
+          "n": 16
+        },
+        {
+          "nome": "balance",
+          "n": 16
+        }
+      ]
+    },
+    "arrefecimento": {
+      "tipo": "motor",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "bomba+",
+          "corrente_a": 6
+        },
+        {
+          "nome": "bomba-",
+          "corrente_a": 6
+        },
+        {
+          "nome": "fan+",
+          "corrente_a": 10,
+          "n": 4
+        },
+        {
+          "nome": "fan-",
+          "corrente_a": 10,
+          "n": 4
+        },
+        {
+          "nome": "tacometro",
+          "n": 6
+        }
+      ],
+      "comprimento_m": 45
+    },
+    "sensores_distribuidos": {
+      "tipo": "sensor",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "temp",
+          "n": 48
+        },
+        {
+          "nome": "corrente",
+          "n": 24
+        },
+        {
+          "nome": "vibracao",
+          "n": 16
+        },
+        {
+          "nome": "imu",
+          "n": 12
+        },
+        {
+          "nome": "proximidade",
+          "n": 32
+        },
+        {
+          "nome": "vcc",
+          "corrente_a": 6
+        },
+        {
+          "nome": "gnd",
+          "corrente_a": 6
+        }
+      ],
+      "comprimento_m": 80
+    },
+    "telemetria_watchdog": {
+      "tipo": "lanes",
+      "lanes": 2,
+      "gbps_por_lane": 1.0,
+      "blindagem": true,
+      "extra": 14,
+      "descricao": "Ethernet 1G para o GLaDOS + watchdog em hardware + parada de emergência em laço duplo",
+      "comprimento_m": 200
+    },
+    "seguranca_plc": {
+      "tipo": "sensor",
+      "blindagem": true,
+      "comprimento_m": 120,
+      "condutores": [
+        {
+          "nome": "estop_laco_A",
+          "n": 4
+        },
+        {
+          "nome": "estop_laco_B",
+          "n": 4
+        },
+        {
+          "nome": "cortina_luz",
+          "n": 16
+        },
+        {
+          "nome": "scanner_laser",
+          "n": 12
+        },
+        {
+          "nome": "porta_gaiola",
+          "n": 8
+        },
+        {
+          "nome": "cadeado_loto",
+          "n": 4
+        },
+        {
+          "nome": "vcc24",
+          "corrente_a": 6
+        },
+        {
+          "nome": "gnd24",
+          "corrente_a": 6
+        }
+      ]
+    },
+    "hidraulica_pneumatica": {
+      "tipo": "motor",
+      "blindagem": true,
+      "comprimento_m": 50,
+      "tensao_v": 400,
+      "condutores": [
+        {
+          "nome": "bomba+",
+          "corrente_a": 60
+        },
+        {
+          "nome": "bomba-",
+          "corrente_a": 60
+        },
+        {
+          "nome": "valvula",
+          "n": 24
+        },
+        {
+          "nome": "pressao",
+          "n": 12
+        }
+      ]
+    }
+  },
+  "haste": {
+    "motores": [
+      {
+        "id": "m1",
+        "nome": "pórtico X",
+        "min": 0,
+        "max": 100,
+        "passo_max": 5
+      },
+      {
+        "id": "m2",
+        "nome": "pórtico Y",
+        "min": 0,
+        "max": 100,
+        "passo_max": 5
+      },
+      {
+        "id": "m3",
+        "nome": "pórtico Z",
+        "min": 0,
+        "max": 100,
+        "passo_max": 5
+      },
+      {
+        "id": "m4",
+        "nome": "giro",
+        "min": 0,
+        "max": 100,
+        "passo_max": 5
+      }
+    ]
+  },
+  "cabeca": {
+    "led": {
+      "canal": "R",
+      "min": 0,
+      "max": 100,
+      "temp_max_c": 70
+    },
+    "camera": {
+      "modo": "mono",
+      "exposicao_fixa": true,
+      "canal": "R"
+    }
+  },
+  "barramento": {
+    "limite_corrente_a": 8.0,
+    "limite_temp_c": 85
+  },
+  "pecas": [
+    {
+      "nome": "computador central (cérebro)",
+      "cabo": "energia_principal",
+      "peso": 20
+    },
+    {
+      "nome": "RAM",
+      "cabo": "dados_visao",
+      "peso": 3
+    },
+    {
+      "nome": "SSD",
+      "cabo": "dados_visao",
+      "peso": 4
+    },
+    {
+      "nome": "HD",
+      "cabo": "dados_visao",
+      "peso": 4
+    },
+    {
+      "nome": "fonte + suporte/base",
+      "cabo": "energia_principal",
+      "peso": 10
+    },
+    {
+      "nome": "câmera",
+      "cabo": "dados_visao",
+      "peso": 10
+    },
+    {
+      "nome": "lente de vidro",
+      "cabo": "dados_visao",
+      "peso": 3
+    },
+    {
+      "nome": "sensor facial",
+      "cabo": "dados_rostos",
+      "peso": 10
+    },
+    {
+      "nome": "microfone",
+      "cabo": "dados_audio",
+      "peso": 4
+    },
+    {
+      "nome": "speaker",
+      "cabo": "dados_audio",
+      "peso": 4
+    },
+    {
+      "nome": "motor da haste (x3)",
+      "cabo": "motores_haste",
+      "peso": 30
+    },
+    {
+      "nome": "encoders e fins de curso",
+      "cabo": "motores_haste",
+      "peso": 12
+    },
+    {
+      "nome": "fita LED RGB vermelha",
+      "cabo": "fita_led_vermelha",
+      "peso": 6
+    },
+    {
+      "nome": "detector de gás carbônico",
+      "cabo": "detector_co2",
+      "peso": 6
+    },
+    {
+      "nome": "interface Modbus de fábrica",
+      "cabo": "modbus_fabrica",
+      "peso": 8
+    },
+    {
+      "nome": "relé/MOSFET do barramento",
+      "cabo": "dados_visao",
+      "peso": 5
+    },
+    {
+      "nome": "3 minibots (contenção, extintor, restauração)",
+      "cabo": "detector_co2",
+      "peso": 15
+    },
+    {
+      "nome": "barramento redundante (veia B) + comutador",
+      "cabo": "barramento_redundante_b",
+      "peso": 25
+    },
+    {
+      "nome": "FPGA de roteamento visão/rosto/áudio",
+      "cabo": "barramento_redundante_b",
+      "peso": 15
+    },
+    {
+      "nome": "switch Ethernet 1,3 Gbps",
+      "cabo": "telemetria_watchdog",
+      "peso": 12
+    },
+    {
+      "nome": "watchdog em hardware + parada de emergência dupla",
+      "cabo": "telemetria_watchdog",
+      "peso": 20
+    },
+    {
+      "nome": "bateria de reserva + BMS (8 células)",
+      "cabo": "bateria_reserva_bms",
+      "peso": 35
+    },
+    {
+      "nome": "arrefecimento líquido (bomba + 4 ventoinhas)",
+      "cabo": "arrefecimento",
+      "peso": 25
+    },
+    {
+      "nome": "24 sensores de temperatura",
+      "cabo": "sensores_distribuidos",
+      "peso": 24
+    },
+    {
+      "nome": "12 sensores de corrente (um por veia)",
+      "cabo": "sensores_distribuidos",
+      "peso": 24
+    },
+    {
+      "nome": "IMU (equilíbrio da haste)",
+      "cabo": "sensores_distribuidos",
+      "peso": 10
+    },
+    {
+      "nome": "16 sensores de proximidade (segurança de pessoas)",
+      "cabo": "sensores_distribuidos",
+      "peso": 32
+    },
+    {
+      "nome": "segundo computador (cérebro reserva)",
+      "cabo": "energia_principal",
+      "peso": 25
+    },
+    {
+      "nome": "registrador de eventos (caixa-preta)",
+      "cabo": "telemetria_watchdog",
+      "peso": 15
+    },
+    {
+      "nome": "pórtico de trilhos de teto (4 eixos)",
+      "cabo": "motores_haste",
+      "peso": 45
+    },
+    {
+      "nome": "4 servomotores industriais 100 A",
+      "cabo": "motores_haste",
+      "peso": 45
+    },
+    {
+      "nome": "CLP de segurança SIL3 (parada categoria 0/1)",
+      "cabo": "seguranca_plc",
+      "peso": 60
+    },
+    {
+      "nome": "cortinas de luz + scanners laser de zona (menos zonas)",
+      "cabo": "seguranca_plc",
+      "peso": 30
+    },
+    {
+      "nome": "gaiola com porta intertravada + LOTO",
+      "cabo": "seguranca_plc",
+      "peso": 20
+    },
+    {
+      "nome": "transformador 400 V + disjuntor geral",
+      "cabo": "energia_principal",
+      "peso": 40
+    },
+    {
+      "nome": "banco de UPS 400 V (120 A)",
+      "cabo": "bateria_reserva_bms",
+      "peso": 30
+    },
+    {
+      "nome": "hidráulica/pneumática (bomba 60 A, 24 válvulas)",
+      "cabo": "hidraulica_pneumatica",
+      "peso": 35
+    },
+    {
+      "nome": "48 sensores de temperatura + 16 de vibração",
+      "cabo": "sensores_distribuidos",
+      "peso": 32
+    },
+    {
+      "nome": "servidor de borda redundante (cérebro A/B)",
+      "cabo": "telemetria_watchdog",
+      "peso": 50
+    },
+    {
+      "nome": "gateway OPC UA/Modbus para MES/ERP",
+      "cabo": "modbus_fabrica",
+      "peso": 40
+    },
+    {
+      "nome": "extinção fixa (CO2/gás inerte) da sala do robô",
+      "cabo": "detector_co2",
+      "peso": 30
+    }
+  ],
+  "escala": {
+    "altura_m": 30,
+    "altura_ref_m": 18,
+    "envergadura_m": 40,
+    "suspenso_em": "pórtico de trilhos no teto do galpão",
+    "obs": "Versão recomendada: menor, mais barata e mais rápida de entregar que a gigante (80 m). Mude só altura_m: os comprimentos dos cabos (definidos para 18 m em altura_ref_m) escalam junto. Movimento só dentro de gaiola com intertravamento."
+  }
+}

@@ -220,6 +220,16 @@ Os números são dimensionamento de projeto, não projeto elétrico aprovado: em
 engenheiro eletricista, norma (IEC 60204-1, ISO 13849 / IEC 62061) e aceite do responsável pela segurança. O ILrDOS continua não
 sendo circuito de segurança.
 
+### Versão industrial média (recomendada)
+
+`examples/diy-robot/body/body-industrial-medio.json`: 30 m de altura e 40 m de envergadura, 4 servomotores de 100 A, energia
+trifásica de 400 V (160 A por fase), 48 sensores de temperatura e hidráulica de 60 A. Mantém a segurança (CLP SIL3, laços duplos,
+gaiola, extinção por gás), a redundância A/B e a visão vermelha; corta tamanho, corrente e número de sensores. Fica no nível 15
+(contra 21 da gigante), com 3600 condutores (contra 8700). Comandos: `report`, `plano` e `autovalida` com esse arquivo.
+
+Estimativa (sem fonte, ordem de grandeza): **3 a 5 anos e US$ 120 a 300 milhões**, contra 6 a 10 anos e US$ 500 milhões a
+1,2 bilhão da gigante de 80 m. Potência no tronco: energia principal 1× 1000 A, motores 2× 800 A e bateria 1× 800 A em busway.
+
 ### Autovalidação
 
 `ilrdos_body.py autovalida [json]` confere o manifesto contra regras fixas e sai com código 1 se algo falhar: peças que apontam
