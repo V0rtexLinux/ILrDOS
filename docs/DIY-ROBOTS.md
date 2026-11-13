@@ -220,6 +220,14 @@ Os números são dimensionamento de projeto, não projeto elétrico aprovado: em
 engenheiro eletricista, norma (IEC 60204-1, ISO 13849 / IEC 62061) e aceite do responsável pela segurança. O ILrDOS continua não
 sendo circuito de segurança.
 
+### Autovalidação
+
+`ilrdos_body.py autovalida [json]` confere o manifesto contra regras fixas e sai com código 1 se algo falhar: peças que apontam
+para cabo inexistente ou repetidas, cabo sem peça, queda de tensão acima de 3%, cobre de dados acima de 100 m (deve ser fibra),
+divisão que não chega a Ø <= 150 mm, busway subdimensionado, cabo que afina com mais complexidade, e o comportamento do corpo
+(contenção corta tudo, restauração não religa com anomalia, LED só no canal vermelho). A pontuação inclui as linhas de código do
+repositório, então o nível e os diâmetros mudam um pouco conforme o projeto cresce.
+
 ## Opções do agente
 
 `--hooks` (pasta, padrão `/etc/ilrdos-robot`) · `--port` (7777) · `--bind` · `--allow` (IPs/redes que podem comandar; padrão só

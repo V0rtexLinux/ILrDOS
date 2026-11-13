@@ -30,3 +30,5 @@ for nome, cabo in man["cabos"].items():
         assert od <= b.OD_MAX_MM, (nome, od)
 print("[ok]   industrial: todo cabo dividido fica com Ø <= 150 mm")
 PY
+python3 -I "$B" autovalida | grep -q " 0 falhas" && echo "[ok]   autovalidação (perfil DIY)"
+python3 -I "$B" autovalida "$IND" | grep -q " 0 falhas" && echo "[ok]   autovalidação (perfil industrial)"

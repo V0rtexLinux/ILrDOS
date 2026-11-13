@@ -187,6 +187,65 @@ def cmd_plano(man):
     return 0
 
 
+def cmd_autovalida(man):
+    """Autovalidação: confere o manifesto e o dimensionamento contra regras fixas. Sai com 1 se algo falhar."""
+    c = complexidade(man)
+    aplicar_nivel(c["pontos"])
+    falhas, ok = [], 0
+
+    def checa(cond, msg):
+        nonlocal ok
+        if cond:
+            ok += 1
+        else:
+            falhas.append(msg)
+
+    for e in validar(man):
+        falhas.append(e)
+    cabos = man["cabos"]
+    for p in man.get("pecas", []):
+        checa(p["cabo"] in cabos, f"peça '{p['nome']}' aponta para cabo inexistente '{p['cabo']}'")
+        checa(p["peso"] > 0, f"peça '{p['nome']}' com peso inválido")
+    checa(len({p["nome"] for p in man.get("pecas", [])}) == len(man.get("pecas", [])), "peças com nome repetido")
+    usados = {p["cabo"] for p in man.get("pecas", [])}
+    for nome, cabo in cabos.items():
+        d = dimensionar(cabo)
+        checa(nome in usados, f"cabo '{nome}' sem nenhuma peça ligada")
+        checa(d["condutores"] > 0 and d["od_mm"] > 0, f"{nome}: dimensionamento inválido")
+        if d["queda_pct"] is not None:
+            checa(d["queda_pct"] <= 3.0, f"{nome}: queda de tensão {d['queda_pct']}% > 3%")
+        if cabo["tipo"] == "lanes" and cabo.get("comprimento_m"):
+            esperado = "fibra" if cabo["comprimento_m"] > FIBRA_ACIMA_M else "cobre"
+            checa(d["meio"] == esperado, f"{nome}: meio {d['meio']} errado para {cabo['comprimento_m']} m")
+            checa(cabo["comprimento_m"] <= 100 or d["meio"] == "fibra", f"{nome}: cobre acima de 100 m")
+        if d["od_mm"] > 200:
+            n, od, _ = dividir(cabo)
+            checa(od <= OD_MAX_MM, f"{nome}: divisão não chega a Ø <= {OD_MAX_MM} mm")
+            if any(x.get("corrente_a", 0) >= 100 for x in cabo.get("condutores", [])):
+                b = busway(cabo)
+                checa(b is not None and b["nominal_a"] * b["paralelos"] >= b["corrente_projeto_a"],
+                      f"{nome}: busway subdimensionado")
+    # monotonia: mais complexidade nunca afina o cabo
+    ref = next(iter(cabos.values()))
+    aplicar_nivel(0); a = dimensionar(ref)["od_mm"]
+    aplicar_nivel(c["pontos"]); b2 = dimensionar(ref)["od_mm"]
+    checa(b2 >= a, "mais complexidade afinou o cabo")
+    # corpo: contenção e restauração
+    corpo = Corpo(man); corpo.cabeca.ajustar(90); corpo.contencao()
+    checa(corpo.barramento.cortado and corpo.veias.ativa is None and not corpo.haste.habilitada
+          and corpo.cabeca.rgb() == (0, 0, 0) and corpo.refrig.fans == 0, "contenção não cortou tudo")
+    corpo.barramento.temp = 999
+    checa(corpo.restauracao() == 1 and corpo.barramento.cortado, "restauração religou com anomalia")
+    corpo.barramento.temp = 25
+    checa(corpo.restauracao() == 0, "restauração normal falhou")
+    corpo.cabeca.ajustar(100)
+    checa(corpo.cabeca.rgb()[1:] == (0, 0), "LED fora do canal vermelho")
+    for f in falhas:
+        print("FALHA", f)
+    print(f"autovalidação: {ok} checagens ok, {len(falhas)} falhas")
+    return 1 if falhas else 0
+
+
 def validar(man):
     erros = []
     for nome, cabo in man["cabos"].items():
@@ -409,4 +468,4 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     cmd = a[0] if a else "report"
     man = carregar(a[1] if len(a) > 1 else None)
-    sys.exit({"report": cmd_report, "sim-fogo": cmd_sim_fogo, "plano": cmd_plano}.get(cmd, cmd_report)(man))
+    sys.exit({"report": cmd_report, "sim-fogo": cmd_sim_fogo, "plano": cmd_plano, "autovalida": cmd_autovalida}.get(cmd, cmd_report)(man))

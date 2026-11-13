@@ -3,3 +3,6 @@ packaging/nuget/stage/
 packaging/nuget/obj/
 out/
 build-pkg/
+
+__pycache__/
+*.pyc
