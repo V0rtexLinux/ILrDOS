@@ -107,16 +107,25 @@ def meio(cabo):
     return "cobre"
 
 
-def dimensionar(cabo):
+def _condutores(cabo):
     cond = expandir(cabo)
     if NIVEL["reserva"] > 1:          # veias reservas em paralelo (redundância)
-        medios = [d for _, d, _ in cond if True]
+        medios = [d for _, d, _ in cond]
         extra = int(len(cond) * (NIVEL["reserva"] - 1))
         cond = cond + [(f"reserva{i}", max(medios) if cabo["tipo"] != "lanes" else SINAL_MM, None)
                        for i in range(extra)]
+    return cond
+
+
+def _od(cond, cabo):
     area = sum(math.pi * (d / 2) ** 2 for _, d, _ in cond) / FILL
-    od = 2 * math.sqrt(area / math.pi)
-    od += 2 * (JAQUETA_MM + NIVEL["armadura_mm"]) + (2 * BLINDAGEM_MM if cabo.get("blindagem") else 0)
+    return 2 * math.sqrt(area / math.pi) + 2 * (JAQUETA_MM + NIVEL["armadura_mm"]) + \
+        (2 * BLINDAGEM_MM if cabo.get("blindagem") else 0)
+
+
+def dimensionar(cabo):
+    cond = _condutores(cabo)
+    od = _od(cond, cabo)
     maior = max((m for _, _, m in cond if m), default=None)
     gbps = cabo.get("lanes", 0) * cabo.get("gbps_por_lane", 0)
     L = cabo.get("comprimento_m")
@@ -124,6 +133,58 @@ def dimensionar(cabo):
     return {"comprimento_m": L, "kg_total": round(kg_m * L) if L else None, "queda_pct": queda_tensao(cabo),
             "meio": meio(cabo), "condutores": len(cond), "od_mm": round(od, 1), "maior_secao_mm2": maior,
             "gbps": round(gbps, 2), "raio_curva_mm": round(od * 6, 0)}
+
+
+OD_MAX_MM = 150                                    # maior cabo que se puxa em bandeja/eletroduto
+BUSWAY_A = [800, 1000, 1250, 1600, 2000, 2500, 3200, 4000, 5000, 6300]   # correntes nominais de busway (A)
+
+
+def dividir(cabo, od_max=OD_MAX_MM):
+    """Menor número N de cabos iguais em paralelo (condutores repartidos, grandes primeiro) com Ø <= od_max."""
+    cond = sorted(_condutores(cabo), key=lambda c: -c[1])
+    for n in range(1, len(cond) + 1):
+        grupos = [cond[i::n] for i in range(n)]
+        od = max(_od(g, cabo) for g in grupos)
+        if od <= od_max:
+            return n, round(od, 1), max(len(g) for g in grupos)
+    return len(cond), round(_od(cond[:1], cabo), 1), 1
+
+
+def busway(cabo):
+    """Barramento blindado para o tronco de potência: polos = condutores nominais de potência; corrente por polo
+    = maior corrente de projeto (com margem do nível). Acima de 6300 A, barramentos em paralelo."""
+    cs = [c for c in cabo.get("condutores", []) if c.get("corrente_a", 0) >= 100]
+    if not cs:
+        return None
+    polos = sum(c.get("n", 1) for c in cs)
+    a = max(c["corrente_a"] for c in cs) * NIVEL["margem"]
+    pot = next((r for r in BUSWAY_A if r >= a), BUSWAY_A[-1])
+    paralelos = max(1, math.ceil(a / BUSWAY_A[-1]))
+    carcacas = math.ceil(polos / 4)                # carcaça de 4 polos (3F+PE ou 2 circuitos CC)
+    return {"corrente_projeto_a": round(a), "nominal_a": pot, "paralelos": paralelos,
+            "carcacas": carcacas, "polos": polos, "total": carcacas * paralelos}
+
+
+def cmd_plano(man):
+    c = complexidade(man)
+    n = aplicar_nivel(c["pontos"])
+    print(f"nível {n} | alvo: Ø máx {OD_MAX_MM} mm por cabo | busway só para condutores de potência (>=100 A)")
+    print(f"{'cabo':24} {'Ø atual':>8} {'só cabos (N × Ø)':>22} {'busway':>34}  recomendação")
+    for nome, cabo in man["cabos"].items():
+        d = dimensionar(cabo)
+        if d["od_mm"] <= 200:
+            print(f"{nome:24} {d['od_mm']:>8}  {'-':>21} {'-':>34}  cabo único")
+            continue
+        nd, od, cpc = dividir(cabo)
+        b = busway(cabo)
+        if b:
+            bw = f"{b['total']}× {b['nominal_a']} A ({b['polos']} polos)"
+            rec = "busway no tronco (cabos só nos ramais)"
+        else:
+            bw, rec = "-", "dividir em bandeja (sinal não vai em busway)"
+        print(f"{nome:24} {d['od_mm']:>8}  {f'{nd} × {od} mm ({cpc} cond.)':>21} {bw:>34}  {rec}")
+    print("Estimativa de dimensionamento; busway e bandejas exigem projeto elétrico e aceite do fabricante.")
+    return 0
 
 
 def validar(man):
@@ -322,9 +383,7 @@ def cmd_report(man):
               f"{d['gbps'] or '-':>6} {d['raio_curva_mm']:>9.0f}mm {d['comprimento_m'] or '-':>5} "
               f"{d['kg_total'] or '-':>7} {d['queda_pct'] if d['queda_pct'] is not None else '-':>7} {d['meio']}")
         if d["od_mm"] > 200:
-            n = math.ceil((d["od_mm"] / 150) ** 2)
-            print(f"  ↳ Ø > 200 mm: na prática divida em ~{n} cabos de ≤150 mm em esteira/bandeja, "
-                  f"ou use barramento blindado (busway) no trecho de potência")
+            print("  ↳ Ø > 200 mm: veja `plano` (divisão em cabos de ≤150 mm e barramento blindado)")
     print(f"total de condutores: {tot}")
     return 0
 
@@ -350,4 +409,4 @@ if __name__ == "__main__":
     a = sys.argv[1:]
     cmd = a[0] if a else "report"
     man = carregar(a[1] if len(a) > 1 else None)
-    sys.exit({"report": cmd_report, "sim-fogo": cmd_sim_fogo}.get(cmd, cmd_report)(man))
+    sys.exit({"report": cmd_report, "sim-fogo": cmd_sim_fogo, "plano": cmd_plano}.get(cmd, cmd_report)(man))

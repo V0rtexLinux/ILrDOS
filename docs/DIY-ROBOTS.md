@@ -208,8 +208,13 @@ O que muda em relação à versão DIY:
 - **Segurança de fábrica**: CLP de segurança SIL3, laços duplos de parada de emergência, cortinas de luz e scanners laser de zona,
   gaiola com porta intertravada e bloqueio/etiquetagem (LOTO), extinção fixa por gás inerte, hidráulica/pneumática com 48 válvulas
   e gateway OPC UA/Modbus para MES/ERP.
-- **Nível de complexidade 21** (~2000 pontos, mais de 8700 condutores). Quando um cabo passa de 200 mm de diâmetro o relatório avisa
-  e sugere dividir em vários cabos de até 150 mm ou usar barramento blindado (busway); é assim que a indústria resolve potência alta.
+- **Nível de complexidade 21** (~2000 pontos, mais de 8700 condutores). Quando um cabo passa de 200 mm de diâmetro o relatório avisa e `ilrdos_body.py plano <json>` gera o plano:
+  **divisão** em cabos iguais em paralelo de no máximo 150 mm (os condutores são repartidos, os maiores primeiro; em trifásico,
+  cada cabo deve levar as três fases + PE) e **barramento blindado (busway)** para os condutores de potência (>=100 A), com
+  corrente nominal padrão (800 a 6300 A), número de polos, carcaças de 4 polos e barramentos em paralelo acima de 6300 A.
+  Potência vai em busway no tronco (cabos só nos ramais); sinal (sensores, CLP de segurança) não vai em busway e fica dividido em
+  bandejas. Com o perfil industrial: energia principal 1× 3200 A, motores da haste 3× 2000 A, bateria 1× 2500 A e hidráulica
+  1× 1000 A; sem busway seriam 49, 189, 146 e 128 cabos de ~150 mm.
 
 Os números são dimensionamento de projeto, não projeto elétrico aprovado: em fábrica real, cabos, proteções e a gaiola precisam de
 engenheiro eletricista, norma (IEC 60204-1, ISO 13849 / IEC 62061) e aceite do responsável pela segurança. O ILrDOS continua não
