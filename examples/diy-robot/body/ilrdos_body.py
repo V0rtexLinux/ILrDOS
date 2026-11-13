@@ -9,7 +9,7 @@ import json, math, os, sys
 
 # ampacidade de chassi (A) por seção (mm²), conservadora; vale para cabo multifilar de cobre
 AMPACIDADE = [(0.5, 3), (0.75, 6), (1.5, 15), (2.5, 21), (4, 28), (6, 36), (10, 50),
-              (16, 68), (25, 90), (35, 110), (50, 140), (70, 170), (95, 210), (120, 245), (150, 285), (185, 330), (240, 390), (300, 450)]
+              (16, 68), (25, 90), (35, 110), (50, 140), (70, 170), (95, 210), (120, 245), (150, 285), (185, 330), (240, 390), (300, 450), (400, 540), (500, 630), (630, 720)]
 FILL = 0.55          # fração da seção do cabo ocupada por cobre+isolamento
 JAQUETA_MM = 2.0     # espessura da capa externa (somada nos dois lados)
 BLINDAGEM_MM = 1.0   # malha + fita
@@ -73,11 +73,38 @@ def expandir(cabo):
         for k in range(n):
             nome = c["nome"] if n == 1 else f'{c["nome"]}#{k}'
             if "corrente_a" in c:
-                mm2 = secao_para(c["corrente_a"])
-                saida.append((nome, diam_condutor(mm2), mm2))
+                # acima do maior condutor da tabela, divide a corrente em condutores em paralelo
+                par = max(1, math.ceil(c["corrente_a"] * NIVEL["margem"] / AMPACIDADE[-1][1]))
+                mm2 = secao_para(c["corrente_a"] / par)
+                for j in range(par):
+                    saida.append((nome if par == 1 else f"{nome}||{j}", diam_condutor(mm2), mm2))
             else:
                 saida.append((nome, SINAL_MM, None))
     return saida
+
+
+RHO_CU = 0.0175          # ohm·mm²/m (cobre)
+FIBRA_ACIMA_M = 90       # acima disso, cobre de dados vira fibra óptica (limite de 100 m do Ethernet)
+
+
+def queda_tensao(cabo):
+    """% de queda no maior condutor de potência (ida e volta) para o comprimento e a tensão do cabo."""
+    L, V = cabo.get("comprimento_m"), cabo.get("tensao_v")
+    if not (L and V):
+        return None
+    cs = [c for c in cabo.get("condutores", []) if "corrente_a" in c]
+    if not cs:
+        return None
+    c = max(cs, key=lambda x: x["corrente_a"])
+    par = max(1, math.ceil(c["corrente_a"] * NIVEL["margem"] / AMPACIDADE[-1][1]))
+    mm2 = secao_para(c["corrente_a"] / par) * par
+    return round(100 * c["corrente_a"] * RHO_CU * 2 * L / mm2 / V, 2)
+
+
+def meio(cabo):
+    if cabo["tipo"] == "lanes" and cabo.get("comprimento_m", 0) > FIBRA_ACIMA_M:
+        return "fibra"
+    return "cobre"
 
 
 def dimensionar(cabo):
@@ -92,7 +119,10 @@ def dimensionar(cabo):
     od += 2 * (JAQUETA_MM + NIVEL["armadura_mm"]) + (2 * BLINDAGEM_MM if cabo.get("blindagem") else 0)
     maior = max((m for _, _, m in cond if m), default=None)
     gbps = cabo.get("lanes", 0) * cabo.get("gbps_por_lane", 0)
-    return {"condutores": len(cond), "od_mm": round(od, 1), "maior_secao_mm2": maior,
+    L = cabo.get("comprimento_m")
+    kg_m = round(sum(math.pi * (d / 2) ** 2 * 0.0089 * FILL for _, d, _ in cond) * 1.6, 1)  # cobre+capas
+    return {"comprimento_m": L, "kg_total": round(kg_m * L) if L else None, "queda_pct": queda_tensao(cabo),
+            "meio": meio(cabo), "condutores": len(cond), "od_mm": round(od, 1), "maior_secao_mm2": maior,
             "gbps": round(gbps, 2), "raio_curva_mm": round(od * 6, 0)}
 
 
@@ -277,12 +307,17 @@ def cmd_report(man):
     erros = validar(man)
     if erros:
         print("\n".join("ERRO " + e for e in erros)); return 1
-    print(f"{'cabo':20} {'cond.':>6} {'Ø mm':>6} {'maior mm²':>10} {'Gbps':>6} {'raio curva':>11}")
+    print(f"{'cabo':20} {'cond.':>6} {'Ø mm':>6} {'maior mm²':>10} {'Gbps':>6} {'raio curva':>11} {'m':>5} {'kg':>7} {'queda%':>7} meio")
     tot = 0
     for nome, cabo in man["cabos"].items():
         d = dimensionar(cabo); tot += d["condutores"]
         print(f"{nome:20} {d['condutores']:>6} {d['od_mm']:>6} {str(d['maior_secao_mm2'] or '-'):>10} "
-              f"{d['gbps'] or '-':>6} {d['raio_curva_mm']:>9.0f}mm")
+              f"{d['gbps'] or '-':>6} {d['raio_curva_mm']:>9.0f}mm {d['comprimento_m'] or '-':>5} "
+              f"{d['kg_total'] or '-':>7} {d['queda_pct'] if d['queda_pct'] is not None else '-':>7} {d['meio']}")
+        if d["od_mm"] > 200:
+            n = math.ceil((d["od_mm"] / 150) ** 2)
+            print(f"  ↳ Ø > 200 mm: na prática divida em ~{n} cabos de ≤150 mm em esteira/bandeja, "
+                  f"ou use barramento blindado (busway) no trecho de potência")
     print(f"total de condutores: {tot}")
     return 0
 

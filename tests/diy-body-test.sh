@@ -14,3 +14,7 @@ b.aplicar_nivel(500); grosso = b.dimensionar(cabo)["od_mm"]
 assert grosso > fino * 1.5, (fino, grosso)
 print(f"[ok]   mais complexidade = cabo mais grosso ({fino} mm -> {grosso} mm)")
 PY
+IND="$(dirname "$0")/../examples/diy-robot/body/body-industrial.json"
+python3 -I "$B" report "$IND" | grep -q "fibra" && echo "[ok]   industrial: fibra óptica nos trechos longos"
+python3 -I "$B" report "$IND" | grep -q "busway" && echo "[ok]   industrial: aviso de cabo grosso demais"
+python3 -I "$B" sim-fogo "$IND" | grep -q "contenção: ok" && echo "[ok]   industrial: contenção"

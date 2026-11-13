@@ -192,6 +192,29 @@ vertebral, watchdog em hardware, energia com bateria de reserva (BMS), arrefecim
 corta as duas veias, a haste, a fita LED e o arrefecimento (para não soprar o fogo). O mesmo módulo simula o chassi vertebral (corte e religação em trava), a haste (passos e fim de
 curso) e a cabeça vermelha (só canal R, limite térmico): `ilrdos_body.py sim-fogo`. Teste: `tests/diy-body-test.sh`.
 
+## Versão industrial gigante (porte de fábrica)
+
+Perfil para fábricas e indústrias grandes, com o robô em escala gigante (cerca de 18 m de altura e 24 m de envergadura, suspenso em
+pórtico de trilhos no teto). Fica em `examples/diy-robot/body/body-industrial.json` e usa o mesmo `ilrdos_body.py`:
+
+`python3 examples/diy-robot/body/ilrdos_body.py report examples/diy-robot/body/body-industrial.json`
+
+O que muda em relação à versão DIY:
+
+- **Comprimento real dos cabos** (15 a 200 m), com peso total em kg e **queda de tensão** (%) nos de potência. Energia trifásica de
+  690 V (L1/L2/L3/PE de 400 A), 6 servomotores de 250 A e banco de UPS de 400 V. Acima do maior condutor da tabela (630 mm²) a
+  corrente é dividida em condutores em paralelo.
+- **Fibra óptica** nos cabos de dados com mais de 90 m (o cobre Ethernet passa de 100 m e perde sinal), o que o relatório indica na coluna `meio`.
+- **Segurança de fábrica**: CLP de segurança SIL3, laços duplos de parada de emergência, cortinas de luz e scanners laser de zona,
+  gaiola com porta intertravada e bloqueio/etiquetagem (LOTO), extinção fixa por gás inerte, hidráulica/pneumática com 48 válvulas
+  e gateway OPC UA/Modbus para MES/ERP.
+- **Nível de complexidade 21** (~2000 pontos, mais de 8700 condutores). Quando um cabo passa de 200 mm de diâmetro o relatório avisa
+  e sugere dividir em vários cabos de até 150 mm ou usar barramento blindado (busway); é assim que a indústria resolve potência alta.
+
+Os números são dimensionamento de projeto, não projeto elétrico aprovado: em fábrica real, cabos, proteções e a gaiola precisam de
+engenheiro eletricista, norma (IEC 60204-1, ISO 13849 / IEC 62061) e aceite do responsável pela segurança. O ILrDOS continua não
+sendo circuito de segurança.
+
 ## Opções do agente
 
 `--hooks` (pasta, padrão `/etc/ilrdos-robot`) · `--port` (7777) · `--bind` · `--allow` (IPs/redes que podem comandar; padrão só
