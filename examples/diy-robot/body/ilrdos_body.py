@@ -9,7 +9,7 @@ import json, math, os, sys
 
 # ampacidade de chassi (A) por seção (mm²), conservadora; vale para cabo multifilar de cobre
 AMPACIDADE = [(0.5, 3), (0.75, 6), (1.5, 15), (2.5, 21), (4, 28), (6, 36), (10, 50),
-              (16, 68), (25, 90), (35, 110), (50, 140), (70, 170), (95, 210)]
+              (16, 68), (25, 90), (35, 110), (50, 140), (70, 170), (95, 210), (120, 245), (150, 285), (185, 330), (240, 390), (300, 450)]
 FILL = 0.55          # fração da seção do cabo ocupada por cobre+isolamento
 JAQUETA_MM = 2.0     # espessura da capa externa (somada nos dois lados)
 BLINDAGEM_MM = 1.0   # malha + fita
@@ -167,19 +167,96 @@ class CabecaVermelha:
         return (self.nivel, 0, 0)   # verde e azul sempre 0
 
 
+class Watchdog:
+    """Hardware watchdog: se o cérebro não alimentar dentro do prazo, o corpo vai para contenção."""
+    def __init__(self, prazo=3):
+        self.prazo, self.ultimo = prazo, 0
+
+    def alimentar(self, t):
+        self.ultimo = t
+
+    def vencido(self, t):
+        return t - self.ultimo > self.prazo
+
+
+class Energia:
+    """Fonte principal + bateria de reserva (BMS). Troca sem queda; bateria baixa bloqueia motores."""
+    def __init__(self, soc=100.0):
+        self.fonte_ok, self.soc = True, soc
+
+    def tick(self, carga_pct=10):
+        if not self.fonte_ok:
+            self.soc = max(0.0, self.soc - carga_pct * 0.1)
+
+    def fonte(self):
+        return "rede" if self.fonte_ok else "bateria"
+
+    def permite_motores(self):
+        return self.fonte_ok or self.soc > 20
+
+
+class Arrefecimento:
+    """Bomba + ventoinhas ligadas à temperatura mais alta dos 24 sensores. Em fogo, desliga (não sopra o fogo)."""
+    def __init__(self, n=24):
+        self.temps, self.fans, self.bomba = [25.0] * n, 0, False
+
+    def tick(self):
+        t = max(self.temps)
+        self.bomba = t > 40
+        self.fans = 0 if t < 35 else min(100, int((t - 35) * 5))
+
+    def desligar(self):
+        self.bomba, self.fans = False, 0
+
+
+class VeiaRedundante:
+    """Veias A e B do chassi vertebral: usa a A; se ela falhar assume a B; em fogo as duas cortam."""
+    def __init__(self, cfg):
+        self.a, self.b, self.ativa = ChassiVertebral(cfg), ChassiVertebral(cfg), "A"
+
+    def falha_a(self):
+        self.a.cortar()
+        if not self.b.cortado:
+            self.ativa = "B"
+
+    def cortar_tudo(self):
+        self.a.cortar(); self.b.cortar(); self.ativa = None
+
+    def restaurar(self):
+        ra, rb = self.a.restaurar(), self.b.restaurar()
+        self.ativa = "A" if ra == 0 else ("B" if rb == 0 else None)
+        return 0 if self.ativa else 1
+
+
+class Telemetria:
+    """Caixa-preta: guarda os últimos eventos (anel) para análise depois de incêndio ou falha."""
+    def __init__(self, cap=256):
+        self.cap, self.eventos = cap, []
+
+    def log(self, t, msg):
+        self.eventos.append((t, msg))
+        del self.eventos[:-self.cap]
+
+
 class Corpo:
     def __init__(self, man):
         self.barramento = ChassiVertebral(man["barramento"])
         self.haste = Haste(man["haste"])
         self.cabeca = CabecaVermelha(man["cabeca"])
+        self.veias = VeiaRedundante(man["barramento"])
+        self.watchdog, self.energia = Watchdog(), Energia()
+        self.refrig, self.caixa_preta = Arrefecimento(), Telemetria()
 
     def contencao(self):           # minibot 1: ordem importa, barramento primeiro
         self.barramento.cortar()
+        self.veias.cortar_tudo()
         self.haste.cortar()
         self.cabeca.apagar()
+        self.refrig.desligar()
+        self.caixa_preta.log(0, "contenção: barramento A/B, haste, LED e arrefecimento cortados")
 
     def restauracao(self):         # minibot 3: só religa se o barramento estiver normal
-        rc = self.barramento.restaurar()
+        rc = max(self.barramento.restaurar(), self.veias.restaurar())
         if rc == 0:
             self.haste.habilitada = True
         return rc
@@ -220,6 +297,10 @@ def cmd_sim_fogo(man):
     print("restauração com anomalia sai com", c.restauracao(), "(esperado 1)")
     c.barramento.temp = 30
     print("restauração normal sai com", c.restauracao(), "(esperado 0)")
+    c.energia.fonte_ok = False; c.energia.soc = 15
+    print("bateria baixa libera motores?", c.energia.permite_motores(), "(esperado False)")
+    c.watchdog.alimentar(0)
+    print("watchdog vencido após 5 s?", c.watchdog.vencido(5), "(esperado True)")
     return 0 if ok else 1
 
 

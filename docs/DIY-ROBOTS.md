@@ -182,8 +182,14 @@ transforma o total em um **nível** (1 a cada 100 pontos). Quanto maior o nível
 - **Margem de corrente**: +35% de seção por nível nos condutores de potência.
 - **Armadura**: +1,5 mm de capa por nível.
 
-Com o projeto atual (nível 4) os feixes saem de 23 a 44 mm de diâmetro; cada peça ou linha nova no projeto pode subir o nível e
-engrossar o cabo no relatório. O mesmo módulo simula o chassi vertebral (corte e religação em trava), a haste (passos e fim de
+Com o projeto atual (nível 8, ~770 pontos, 13 cabos e mais de 1000 condutores) os feixes de dados saem com 40 a 45 mm de
+diâmetro, energia principal com 74 mm, motores da haste com 86 mm e a bateria de reserva com mais de 180 mm. Cada peça ou linha
+nova no projeto pode subir o nível e engrossar o cabo no relatório.
+
+Subsistemas simulados no código (`ilrdos_body.py`), cada um com cabos e peças próprios: veias redundantes A/B do chassi
+vertebral, watchdog em hardware, energia com bateria de reserva (BMS), arrefecimento líquido ligado a 24 sensores de temperatura,
+12 sensores de corrente, IMU, 16 sensores de proximidade, switch Ethernet e caixa-preta de eventos. Em incêndio, a contenção
+corta as duas veias, a haste, a fita LED e o arrefecimento (para não soprar o fogo). O mesmo módulo simula o chassi vertebral (corte e religação em trava), a haste (passos e fim de
 curso) e a cabeça vermelha (só canal R, limite térmico): `ilrdos_body.py sim-fogo`. Teste: `tests/diy-body-test.sh`.
 
 ## Opções do agente

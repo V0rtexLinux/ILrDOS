@@ -145,6 +145,102 @@
           "nome": "pwm"
         }
       ]
+    },
+    "barramento_redundante_b": {
+      "tipo": "lanes",
+      "lanes": 8,
+      "gbps_por_lane": 0.5,
+      "blindagem": true,
+      "extra": 16,
+      "descricao": "segunda veia em paralelo (visão+rosto), assume se a veia A for cortada ou falhar"
+    },
+    "bateria_reserva_bms": {
+      "tipo": "power",
+      "blindagem": false,
+      "condutores": [
+        {
+          "nome": "BAT+",
+          "corrente_a": 80
+        },
+        {
+          "nome": "BAT-",
+          "corrente_a": 80
+        },
+        {
+          "nome": "sense",
+          "n": 8
+        },
+        {
+          "nome": "balance",
+          "n": 8
+        }
+      ]
+    },
+    "arrefecimento": {
+      "tipo": "motor",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "bomba+",
+          "corrente_a": 6
+        },
+        {
+          "nome": "bomba-",
+          "corrente_a": 6
+        },
+        {
+          "nome": "fan+",
+          "corrente_a": 10,
+          "n": 4
+        },
+        {
+          "nome": "fan-",
+          "corrente_a": 10,
+          "n": 4
+        },
+        {
+          "nome": "tacometro",
+          "n": 6
+        }
+      ]
+    },
+    "sensores_distribuidos": {
+      "tipo": "sensor",
+      "blindagem": true,
+      "condutores": [
+        {
+          "nome": "temp",
+          "n": 24
+        },
+        {
+          "nome": "corrente",
+          "n": 12
+        },
+        {
+          "nome": "imu",
+          "n": 8
+        },
+        {
+          "nome": "proximidade",
+          "n": 16
+        },
+        {
+          "nome": "vcc",
+          "corrente_a": 3
+        },
+        {
+          "nome": "gnd",
+          "corrente_a": 3
+        }
+      ]
+    },
+    "telemetria_watchdog": {
+      "tipo": "lanes",
+      "lanes": 2,
+      "gbps_por_lane": 1.0,
+      "blindagem": true,
+      "extra": 14,
+      "descricao": "Ethernet 1G para o GLaDOS + watchdog em hardware + parada de emergência em laço duplo"
     }
   },
   "haste": {
@@ -273,6 +369,66 @@
     {
       "nome": "3 minibots (contenção, extintor, restauração)",
       "cabo": "detector_co2",
+      "peso": 15
+    },
+    {
+      "nome": "barramento redundante (veia B) + comutador",
+      "cabo": "barramento_redundante_b",
+      "peso": 25
+    },
+    {
+      "nome": "FPGA de roteamento visão/rosto/áudio",
+      "cabo": "barramento_redundante_b",
+      "peso": 30
+    },
+    {
+      "nome": "switch Ethernet 1,3 Gbps",
+      "cabo": "telemetria_watchdog",
+      "peso": 12
+    },
+    {
+      "nome": "watchdog em hardware + parada de emergência dupla",
+      "cabo": "telemetria_watchdog",
+      "peso": 20
+    },
+    {
+      "nome": "bateria de reserva + BMS (8 células)",
+      "cabo": "bateria_reserva_bms",
+      "peso": 35
+    },
+    {
+      "nome": "arrefecimento líquido (bomba + 4 ventoinhas)",
+      "cabo": "arrefecimento",
+      "peso": 25
+    },
+    {
+      "nome": "24 sensores de temperatura",
+      "cabo": "sensores_distribuidos",
+      "peso": 24
+    },
+    {
+      "nome": "12 sensores de corrente (um por veia)",
+      "cabo": "sensores_distribuidos",
+      "peso": 24
+    },
+    {
+      "nome": "IMU (equilíbrio da haste)",
+      "cabo": "sensores_distribuidos",
+      "peso": 10
+    },
+    {
+      "nome": "16 sensores de proximidade (segurança de pessoas)",
+      "cabo": "sensores_distribuidos",
+      "peso": 32
+    },
+    {
+      "nome": "segundo computador (cérebro reserva)",
+      "cabo": "energia_principal",
+      "peso": 40
+    },
+    {
+      "nome": "registrador de eventos (caixa-preta)",
+      "cabo": "telemetria_watchdog",
       "peso": 15
     }
   ]
