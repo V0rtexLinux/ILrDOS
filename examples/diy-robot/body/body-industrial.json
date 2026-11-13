@@ -628,9 +628,10 @@
     }
   ],
   "escala": {
-    "altura_m": 18,
-    "envergadura_m": 24,
-    "suspenso_em": "pórtico de trilhos no teto da fábrica",
-    "obs": "porte industrial: movimento só dentro de gaiola de segurança com intertravamento"
+    "altura_m": 80,
+    "altura_ref_m": 18,
+    "envergadura_m": 110,
+    "suspenso_em": "pórtico de trilhos no teto do galpão",
+    "obs": "Estimativa: não há medida oficial da GLaDOS (Portal Wiki, Combine OverWiki e Wikipedia não trazem número); ela é descrita como massa pendurada do teto numa câmara octogonal enorme. 80 m foi escolhido para ficar um pouco maior que ela. Mude só altura_m: os comprimentos dos cabos (definidos para 18 m em altura_ref_m) escalam junto. Movimento só dentro de gaiola com intertravamento."
   }
 }

@@ -295,7 +295,14 @@ class Corpo:
 def carregar(path=None):
     path = path or os.path.join(os.path.dirname(os.path.abspath(__file__)), "body.json")
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        man = json.load(f)
+    esc = man.get("escala")
+    if esc and esc.get("altura_ref_m") and esc.get("altura_m"):
+        k = esc["altura_m"] / esc["altura_ref_m"]      # comprimentos dos cabos seguem a altura do robô
+        for cabo in man["cabos"].values():
+            if "comprimento_m" in cabo:
+                cabo["comprimento_m"] = round(cabo["comprimento_m"] * k)
+    return man
 
 
 def cmd_report(man):

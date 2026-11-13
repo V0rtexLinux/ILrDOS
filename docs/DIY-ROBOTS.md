@@ -194,14 +194,14 @@ curso) e a cabeça vermelha (só canal R, limite térmico): `ilrdos_body.py sim-
 
 ## Versão industrial gigante (porte de fábrica)
 
-Perfil para fábricas e indústrias grandes, com o robô em escala gigante (cerca de 18 m de altura e 24 m de envergadura, suspenso em
-pórtico de trilhos no teto). Fica em `examples/diy-robot/body/body-industrial.json` e usa o mesmo `ilrdos_body.py`:
+Perfil para fábricas e indústrias grandes, com o robô em escala gigante (80 m de altura e 110 m de envergadura por padrão, estimativa um pouco maior que a GLaDOS (não existe medida oficial), suspenso em
+pórtico de trilhos no teto; mude só `escala.altura_m` e todos os comprimentos de cabo escalam junto). Fica em `examples/diy-robot/body/body-industrial.json` e usa o mesmo `ilrdos_body.py`:
 
 `python3 examples/diy-robot/body/ilrdos_body.py report examples/diy-robot/body/body-industrial.json`
 
 O que muda em relação à versão DIY:
 
-- **Comprimento real dos cabos** (15 a 200 m), com peso total em kg e **queda de tensão** (%) nos de potência. Energia trifásica de
+- **Comprimento real dos cabos** (67 a 890 m com a altura padrão de 80 m), com peso total em kg e **queda de tensão** (%) nos de potência. Energia trifásica de
   690 V (L1/L2/L3/PE de 400 A), 6 servomotores de 250 A e banco de UPS de 400 V. Acima do maior condutor da tabela (630 mm²) a
   corrente é dividida em condutores em paralelo.
 - **Fibra óptica** nos cabos de dados com mais de 90 m (o cobre Ethernet passa de 100 m e perde sinal), o que o relatório indica na coluna `meio`.
