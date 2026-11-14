@@ -428,6 +428,10 @@ int runServer(const Options& o) {
     Listener listener(cfg.str("VOSK_MODEL", "/usr/share/ilrdos/models/vosk-pt"), cfg.str("AUDIO_IN", "auto"));
     LlmClient llm(pc, cfg.str("OLLAMA_MODEL", "qwen2.5:7b-instruct"));
 
+    FacilityCore facility(iot, fleet, cfg.str("FACILITY_CONFIG", "/boot/ilrdos-facility.txt"));
+    facility.setProfile(cfg.str("BODY_PROFILE", "standard"));
+    std::cout << "[camara-central] " << facility.load() << '\n';
+    FacilityCore* facilityPtr = nullptr;
     Autonomy* autonomyPtr = nullptr;   // criada depois da conversa; as ações abaixo só rodam com ela pronta
     RobotStructure* structurePtr = nullptr;
     Actuators act;
@@ -453,7 +457,6 @@ int runServer(const Options& o) {
     act.fleetModel = [&](const std::string& r, const std::string& a) { return fleet.command(r, a, Origin::Model); };
     act.fleetStatus = [&](const std::string& r) { return fleet.status(r); };
     act.fleetStopAll = [&] { return fleet.stopAll(Origin::Voice); };
-    FacilityCore* facilityPtr = nullptr;
     act.facility = [&](const std::vector<std::string>& w) { return facilityPtr ? facilityPtr->command(w, Origin::Voice) : std::string("Câmara central indisponível."); };
     act.iotRead = [&](const std::string& d) { return iot.read(d); };
     act.devices = [&] { return iot.infos(); };
@@ -489,7 +492,7 @@ int runServer(const Options& o) {
 
     AutonomyHooks hooks;
     hooks.say = [&](const std::string& t) { conversation.announce(t); };
-    hooks.fireRule = [&](const std::string& e, const std::string& s, const std::string& who) { iot.fire(e, s, who); fleet.fire(e, s, who); };
+    hooks.fireRule = [&](const std::string& e, const std::string& s, const std::string& who) { iot.fire(e, s, who); fleet.fire(e, s, who); if (facilityPtr) facilityPtr->onEvent(e, s); };
     hooks.pulseTurn = [&](bool left, int ms, int speed) { drive.pulseTurn(left, ms, speed); };
     hooks.move = [&](const std::string& dir, int speed, int ms) { bool ok = false; const auto d = parseDir(dir, ok); return ok ? drive.move(d, speed, ms) : std::string(); };
     hooks.turn = [&](bool left, int deg) { return drive.turnDegrees(left, deg); };
@@ -537,10 +540,13 @@ int runServer(const Options& o) {
     drive.setGuard([&] { return structure.motionBlockReason(); });   // tensão baixa / calor crítico = não anda
     std::cout << "[estrutura] " << structure.summary() << " | " << RobotStructure::map() << '\n';
 
-    FacilityCore facility(iot, fleet, cfg.str("FACILITY_CONFIG", "/boot/ilrdos-facility.txt"));
-    facility.setProfile(cfg.str("BODY_PROFILE", "standard"));
-    std::cout << "[camara-central] " << facility.load() << '\n';
+    struct FacilityStopper { FacilityCore& f; ~FacilityStopper() { f.stopAutonomy(); } } facilityStopper{facility};   // para a thread antes de destruir structure/robot
     facilityPtr = &facility;
+    facility.fireAlarm = [&] {
+        for (const auto& part : structure.parts()) if (part.id == PartId::GasDetector) return part.state == PartState::Fail;
+        return false;
+    };
+    facility.startAutonomy();   // a fábrica passa a ser decidida pelo próprio ILrDOS, sem comando de terminal
     facility.say = [&](const std::string& t) { conversation.announce(t); };
     facility.setEye = [&](const std::string& st) { robot.setState(st); };
 

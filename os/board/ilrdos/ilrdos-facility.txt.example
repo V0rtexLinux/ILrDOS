@@ -24,3 +24,18 @@
 #
 # ---- Partida
 # scene startup : ...   (opcional) roda no fim de `facility startup` (luzes, anel, painéis abrem e fecham).
+#
+# ---- AUTONOMIA (perfil industrial): o ILrDOS decide sozinho, sem comando de terminal
+# Já vem ligada. Decisões automáticas:
+#   - ao ligar: partida ordenada (luzes, anel, painéis)           (start=0 desliga)
+#   - chegou alguém: luzes e anel; saiu todo mundo por X min: modo economia; voltou gente: sai da economia
+#   - CPU/ambiente quente (evento hot): ventilação ligada; esfriou: desligada
+#   - fogo (detector de gás da estrutura) ou sensor "watch" em alarme: bloqueio geral + ventilação
+#   - sem alarme por release_seconds: libera o bloqueio que ela mesma criou (bloqueio feito pelo terminal só o terminal libera)
+#   - dispositivos sensitive=1 e máquinas confirm=1 NUNCA são acionados pela autonomia
+# O modo seguro (`facility core seguro`) segura as decisões automáticas, menos o bloqueio de alarme.
+# auto idle_minutes=15 release_seconds=300 start=1       (off=1 desliga a autonomia da câmara central)
+# watch <sensor> <texto> -> lockdown | <cena>             lê o sensor (iot sensor) a cada 5 s; se a leitura contiver <texto>:
+#                                                         lockdown = bloqueio geral; <cena> = roda a cena
+# watch fumaca ativo -> lockdown
+# watch temp_caldeira alta -> resfriar

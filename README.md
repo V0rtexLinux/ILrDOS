@@ -32,7 +32,9 @@ C++ runtime for the robot (Raspberry Pi OS or the custom image in `os/`). Since 
 
 There is **no neurotoxin and no armed turret**: the "toxin" is smoke-evacuation ventilation and the "turrets" are the eye ring (light/camera). `sensitive=1` devices and scenes stay terminal-only, `lockdown` stops the whole fleet, and the *safe mode* (`facility core seguro`) removes voice/AI control, leaving monitoring only.
 
-Operation: `facility startup` (ordered start: lights, eye ring, panels open/close, optional `startup` scene) and `facility core seguro|economia|normal` (*safe*: monitoring only; *economia*: energy saving, switches off non-essentials; only the terminal restores `normal`). This is an industrial control system, not an entertainment animatronic: no theatrical behavior.
+**Autonomous:** on the industrial profile the facility runs by itself, with no terminal command: ordered startup at boot, presence-driven lights/eye ring, energy-saving mode when nobody is around for `idle_minutes`, ventilation on heat, and a general lockdown (plus ventilation) on fire or when a configured `watch` sensor trips, released by the daemon itself after `release_seconds` without alarm. Sensitive devices and `confirm=1` machines are never touched by the autonomy; a lockdown made from the terminal is released only from the terminal. See `os/board/ilrdos/ilrdos-facility.txt.example`; test: `tests/facility-auto-test.sh`.
+
+Manual operation (optional): `facility startup` (ordered start: lights, eye ring, panels open/close, optional `startup` scene) and `facility core seguro|economia|normal` (*safe*: monitoring only; *economia*: energy saving, switches off non-essentials; only the terminal restores `normal`). This is an industrial control system, not an entertainment animatronic: no theatrical behavior.
 
 Terminal: `facility status|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|vent on|off|scene <name>|announce <text>|startup|core normal|seguro|economia|lockdown|release`. Voice (PT-BR): *"bloqueio da fábrica"*, *"abra os painéis"*, *"ligue o anel de olhos"*. Test: `tests/facility-test.sh`.
 

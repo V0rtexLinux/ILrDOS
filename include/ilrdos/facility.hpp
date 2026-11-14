@@ -6,11 +6,17 @@
 // abre nenhuma porta nova para o mundo físico. NÃO existe neurotoxina nem torreta armada: o equivalente seguro da
 // "toxina" é a ventilação/evacuação de fumaça, e o equivalente das "torretas" é o anel de olhos (luz + câmera).
 // Dispositivos sensitive=1 continuam só no terminal autenticado, como no resto do ILrDOS.
+// AUTONOMIA: com o perfil industrial o ILrDOS decide sozinho, sem comando de terminal (ver autopilot abaixo):
+// partida ao ligar, presença (chegou gente: luzes e anel; ninguém por X minutos: economia), calor (ventilação),
+// fogo/sensores da planta (bloqueio geral + ventilação) e liberação automática depois de um período sem alarme.
+// Dispositivos sensitive=1 e máquinas confirm=1 continuam fora do alcance da autonomia (como em todo o ILrDOS).
 // Só funciona com o perfil de corpo industrial (BODY_PROFILE=industrial, ver examples/diy-robot/body/body-industrial.json);
 // em qualquer outro perfil todos os comandos facility respondem que o recurso está indisponível.
 #pragma once
 
+#include <atomic>
 #include <functional>
+#include <thread>
 #include <mutex>
 #include <sstream>
 
@@ -42,6 +48,58 @@ public:
     //   lights <dispositivo>               iluminação geral
     //   vent   <dispositivo>               ventilação/exaustão (evacuação de fumaça)
     //   scene  <nome> [sensitive=1] : ação ; ação ; ...     (câmara de teste = cena)
+    ~FacilityCore() { stopAutonomy(); }
+    void stopAutonomy() {
+        running_.store(false);
+        if (worker_.joinable()) worker_.join();
+    }
+
+    // Sonda de fogo/gás (vem da estrutura do robô); opcional.
+    std::function<bool()> fireAlarm;
+
+    // Liga o piloto automático: roda numa thread própria e decide tudo sozinho. Chamar depois de load().
+    void startAutonomy() {
+        if (!enabled() || autoOff_ || worker_.joinable()) return;
+        running_.store(true);
+        worker_ = std::thread([this] {
+            const auto begin = Clock::now();
+            int tickNo = 0;
+            while (running_.load()) {
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                try { autopilot(std::chrono::duration_cast<std::chrono::seconds>(Clock::now() - begin).count(), ++tickNo); }
+                catch (...) {}
+            }
+        });
+    }
+
+    // Eventos da visão/autonomia do robô (arrive|empty|hot|cool): a fábrica reage sozinha.
+    void onEvent(const std::string& event, const std::string& subject = "any") {
+        if (!enabled() || autoOff_) return;
+        bool restore = false, greet = false, ventOn = false, ventOff = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (event == "arrive") {
+                const bool wasEmpty = !present_;
+                present_ = true;
+                emptyAt_ = {};
+                if (potato_ && autoPotato_) { potato_ = false; autoPotato_ = false; restore = true; }
+                else if (wasEmpty && !lockdown_ && !morality_ && !potato_) greet = true;
+            } else if (event == "empty") {
+                present_ = false;
+                emptyAt_ = Clock::now();
+            } else if (event == "hot" && !lockdown_ && !morality_) { autoVent_ = true; ventOn = true; }
+            else if (event == "cool" && autoVent_) { autoVent_ = false; ventOff = true; }
+        }
+        (void)subject;
+        if (restore || greet) {
+            apply(lightsCopy(), "on", Origin::Auto, "autonomia: presença, luzes");
+            ringState("scan", Origin::Auto);
+            if (restore) speak("Presença detectada. Saindo do modo economia.");
+        }
+        if (ventOn) { apply(ventsCopy(), "on", Origin::Auto, "autonomia: calor, ventilação"); speak("Temperatura alta. Ventilação ligada."); }
+        if (ventOff) apply(ventsCopy(), "off", Origin::Auto, "autonomia: temperatura normal");
+    }
+
     // Liga o módulo só para o perfil industrial. Fora dele nada é carregado nem executado.
     void setProfile(const std::string& profile) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -52,7 +110,7 @@ public:
     std::string load() {
         if (!enabled()) return "desativada (disponível só no perfil industrial: BODY_PROFILE=industrial)";
         std::lock_guard<std::mutex> lock(mutex_);
-        zones_.clear(); ring_.clear(); panels_.clear(); lights_.clear(); vents_.clear(); scenes_.clear();
+        watches_.clear(); zones_.clear(); ring_.clear(); panels_.clear(); lights_.clear(); vents_.clear(); scenes_.clear();
         std::ifstream in(path_);
         if (!in) return "sem " + path_ + " (câmara central em modo vazio)";
         std::string line;
@@ -79,6 +137,26 @@ public:
             }
             const auto w = splitWords(line);
             if (w.size() < 2) continue;
+            if (w[0] == "auto") {            // auto idle_minutes=15 release_seconds=300 start=1 off=1 (idle_seconds=N só para testes)
+                for (std::size_t i = 1; i < w.size(); ++i) {
+                    const auto eq = w[i].find('=');
+                    if (eq == std::string::npos) continue;
+                    const std::string k = w[i].substr(0, eq), v = w[i].substr(eq + 1);
+                    try {
+                        if (k == "idle_minutes") idleSeconds_ = std::max(1, std::stoi(v)) * 60;
+                        else if (k == "idle_seconds") idleSeconds_ = std::max(5, std::stoi(v));
+                        else if (k == "release_seconds") releaseSeconds_ = std::max(10, std::stoi(v));
+                        else if (k == "start") autoStart_ = (v != "0");
+                        else if (k == "off") autoOff_ = (v == "1");
+                    } catch (...) {}
+                }
+                continue;
+            }
+            if (w[0] == "watch" && w.size() >= 5 && w[3] == "->") {   // watch <sensor> <texto> -> lockdown | <cena>
+                watches_.push_back({w[1], foldPt(w[2]), foldPt(w[4]), false});
+                ++count;
+                continue;
+            }
             if (w[0] == "zone") zones_.push_back(w[1]);
             else if (w[0] == "ring") ring_.push_back(w[1]);
             else if (w[0] == "panel") panels_.push_back(w[1]);
@@ -174,6 +252,14 @@ private:
     mutable std::mutex mutex_;
     std::vector<std::string> zones_, ring_, panels_, lights_, vents_;
     std::vector<Scene> scenes_;
+    struct Watch { std::string sensor, text, action; bool active; };
+    std::vector<Watch> watches_;
+    int idleSeconds_{900}, releaseSeconds_{300};
+    bool autoStart_{true}, autoOff_{false};
+    std::atomic<bool> running_{false};
+    std::thread worker_;
+    bool present_{false}, autoPotato_{false}, autoLock_{false}, autoVent_{false}, started_{false};
+    Clock::time_point emptyAt_{}, clearSince_{};
     bool enabled_{false};
     bool lockdown_{false};
     bool morality_{false};
@@ -271,6 +357,87 @@ private:
         return false;
     }
 
+    // Piloto automático (1 tick por segundo). Nunca depende de comando do terminal.
+    void autopilot(long uptime, int tickNo) {
+        bool safeMode, wasLocked, wasAutoLock, canIdle;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            safeMode = morality_;                       // modo seguro: só monitora (bloqueio ainda é permitido)
+            wasLocked = lockdown_;
+            wasAutoLock = autoLock_;
+            canIdle = !lockdown_ && !morality_ && !potato_ && emptyAt_ != Clock::time_point{} &&
+                      Clock::now() - emptyAt_ >= std::chrono::seconds(idleSeconds_);
+        }
+        // 1) partida ao ligar
+        bool doStart = false;
+        { std::lock_guard<std::mutex> lock(mutex_); if (autoStart_ && !started_ && uptime >= 3) { started_ = true; doStart = !safeMode; } }
+        if (doStart) startup(Origin::Auto);
+
+        // 2) fogo/sensores: qualquer gatilho de bloqueio
+        bool alarm = fireAlarm && fireAlarm();
+        if (tickNo % 5 == 0) alarm = pollWatches(safeMode) || alarm;
+        else { std::lock_guard<std::mutex> lock(mutex_); for (const auto& w : watches_) if (w.active && w.action == "lockdown") alarm = true; }
+        if (alarm && !wasLocked) {
+            lockdown(Origin::Auto);
+            apply(ventsCopy(), "on", Origin::Auto, "autonomia: alarme, ventilação");
+            { std::lock_guard<std::mutex> lock(mutex_); autoLock_ = true; clearSince_ = {}; }
+            return;
+        }
+        // 3) liberação automática do bloqueio criado pela própria autonomia, depois de um período sem alarme
+        if (wasLocked && wasAutoLock) {
+            bool release = false;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                if (alarm) clearSince_ = {};
+                else if (clearSince_ == Clock::time_point{}) clearSince_ = Clock::now();
+                else if (Clock::now() - clearSince_ >= std::chrono::seconds(releaseSeconds_)) {
+                    lockdown_ = false; autoLock_ = false; clearSince_ = {}; release = true;
+                    lastAction_ = "bloqueio liberado pela autonomia";
+                }
+            }
+            if (release) {
+                apply(ventsCopy(), "off", Origin::Auto, "autonomia: fim do alarme");
+                if (setEye) setEye("idle");
+                speak("Sem alarme há alguns minutos. Bloqueio liberado automaticamente.");
+            }
+            return;
+        }
+        // 4) ninguém na instalação há muito tempo: economia de energia
+        if (canIdle) {
+            enterEconomia(Origin::Auto);
+            std::lock_guard<std::mutex> lock(mutex_);
+            autoPotato_ = true;
+        }
+    }
+
+    // Lê os sensores "watch" e dispara a ação ao entrar no estado de alarme. Retorna true se algum gatilho de bloqueio está ativo.
+    bool pollWatches(bool safeMode) {
+        std::vector<Watch> copy;
+        { std::lock_guard<std::mutex> lock(mutex_); copy = watches_; }
+        bool lockTrigger = false;
+        for (std::size_t i = 0; i < copy.size(); ++i) {
+            const bool hit = foldPt(iot_.read(copy[i].sensor)).find(copy[i].text) != std::string::npos;
+            const bool isLock = copy[i].action == "lockdown";
+            bool fireNow = false;
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                fireNow = hit && !watches_[i].active;
+                watches_[i].active = hit;
+            }
+            if (hit && isLock) lockTrigger = true;
+            if (fireNow && !isLock && !safeMode) runScene(copy[i].action, Origin::Auto);
+        }
+        return lockTrigger;
+    }
+
+    std::string enterEconomia(Origin origin) {
+        const std::string r = apply(lightsCopy(), "off", origin, "economia: luzes") + " " + ringState("off", origin) + " " +
+                              apply(panelsCopy(), "off", origin, "economia: paineis");
+        speak("Modo economia de energia ativado.");
+        { std::lock_guard<std::mutex> lock(mutex_); potato_ = true; }
+        return "Modo economia ativo. " + r;
+    }
+
     // Modos do núcleo: "seguro" tira o controle por voz/IA (só monitora); "economia" desliga o não essencial.
     std::string coreCommand(const std::vector<std::string>& w, Origin origin) {
         if (w.size() < 3) return std::string("Núcleo atual: ") + coreName() + ". Use: facility core normal|seguro|economia";
@@ -281,16 +448,10 @@ private:
             return "Modo seguro ativo. Controle por voz e IA suspenso; só monitoramento.";
         }
         // Economia de energia: desliga luzes, anel e painéis (o que não é essencial) e fica só monitorando.
-        if (c == "economia") {
-            const std::string r = apply(lightsCopy(), "off", origin, "economia: luzes") + " " + ringState("off", origin) + " " +
-                                  apply(panelsCopy(), "off", origin, "economia: paineis");
-            speak("Modo economia de energia ativado.");
-            { std::lock_guard<std::mutex> lock(mutex_); potato_ = true; }
-            return "Modo economia ativo. " + r;
-        }
+        if (c == "economia") return enterEconomia(origin);
         if (c == "normal") {
             if (origin != Origin::Terminal) return "Só o terminal autenticado restaura o núcleo normal.";
-            { std::lock_guard<std::mutex> lock(mutex_); morality_ = false; potato_ = false; }
+            { std::lock_guard<std::mutex> lock(mutex_); morality_ = false; potato_ = false; autoPotato_ = false; }
             return "Núcleo normal. Controle total restaurado.";
         }
         return "Use: facility core normal|seguro|economia";
