@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Teste da Câmara Central de IA (estilo GLaDOS) em modo simulado: anel, painéis, cenas, bloqueio e núcleo de moralidade.
+# Teste da Câmara Central de IA (estilo GLaDOS) em modo simulado: anel, painéis, cenas, bloqueio e modo seguro.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ -x "${ROOT}/build/ilrdosd" ]] || "${ROOT}/scripts/build-linux.sh"
@@ -23,8 +23,7 @@ lights luz_geral
 vent exaustor
 scene teste_1 : ring scan ; iot painel_teto on ; say Bem-vindo ao centro de enriquecimento.
 scene linha_dois sensitive=1 : iot esteira on
-scene rebuild : say Camaras remontadas.
-scene humor_hostil : iot luz_geral off
+scene startup : say Partida concluida.
 CFG
 echo 200 >"$TMP/sonar"; : >"$TMP/faces"
 export ILRDOS_IOT_CONFIG="$TMP/iot.txt" ILRDOS_FLEET_CONFIG="$TMP/fleet.txt" ILRDOS_FACILITY_CONFIG="$TMP/facility.txt" ILRDOS_BODY_PROFILE="${PROFILE:-industrial}" \
@@ -43,20 +42,17 @@ out=$(ilr "facility status" "facility ring scan" "facility panels open" "facilit
 check "status da câmara" "câmara central: núcleo=normal" "$out"
 check "anel de olhos" "Anel de olhos: scan" "$out"
 check "cena de teste" "Câmara teste 1:" "$out"
-out=$(ilr "facility core moralidade" "hear abra os paineis" "facility core normal" "facility ring off")
-check "moralidade bloqueia a voz" "núcleo de moralidade" "$out"
+out=$(ilr "facility core seguro" "hear abra os paineis" "facility core normal" "facility ring off")
+check "moralidade bloqueia a voz" "Modo seguro ativo" "$out"
 check "terminal remove a moralidade" "Núcleo normal" "$out"
 out=$(ilr "hear bloqueio da fabrica" "facility ring scan" "facility release" "facility panels close")
 check "bloqueio trava a instalação" "Instalação em bloqueio" "$out"
 check "terminal libera" "Bloqueio liberado" "$out"
-out=$(ilr "facility rebuild" "facility mood" "facility core batata" "hear ligue o anel de olhos" "facility mood" "facility core normal" "facility mood")
-check "reconstrução" "Reconstrução:" "$out"
-check "humor calmo" "Humor do núcleo central: calmo" "$out"
-check "batata economiza energia" "Núcleo batata ativo" "$out"
-check "batata bloqueia voz" "Modo batata" "$out"
-check "humor dormente" "Humor do núcleo central: dormente" "$out"
-out=$(ilr "hear bloqueio da fabrica" "facility mood" "facility release")
-check "humor hostil no bloqueio" "Humor do núcleo central: hostil" "$out"
+out=$(ilr "facility startup" "facility core economia" "hear ligue o anel de olhos" "facility core normal" "facility status")
+check "partida" "Partida:" "$out"
+check "economia desliga o não essencial" "Modo economia ativo" "$out"
+check "economia bloqueia a voz" "Modo economia" "$out"
+check "terminal restaura" "núcleo=normal" "$out"
 out=$(ilr "help")
 check "help lista facility" "facility (só perfil industrial)" "$out"
 if [[ -z "${PROFILE:-}" ]]; then PROFILE=standard "$0" >/tmp/facility-std.out 2>&1 || true

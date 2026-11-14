@@ -22,11 +22,5 @@
 # scene fim_do_turno : fleet all dock ; iot luz_geral off ; ring off
 # scene linha_dois sensitive=1 : iot esteira on
 #
-# ---- Estilo Portal 2
-# rebuild (opcional): roda no fim de `facility rebuild` (a GLaDOS acorda e reconstrói a fábrica: luzes piscam,
-#   anel acende, painéis abrem e fecham montando a câmara).
-# humor_<calmo|hostil|dormente> (opcional): a iluminação segue o humor do núcleo central, como no jogo.
-# scene rebuild : say Câmaras de teste remontadas.
-# scene humor_hostil : iot luz_geral off ; ring alert
-# scene humor_calmo : iot luz_geral on ; ring scan
-# scene humor_dormente : iot luz_geral off ; ring off
+# ---- Partida
+# scene startup : ...   (opcional) roda no fim de `facility startup` (luzes, anel, painéis abrem e fecham).

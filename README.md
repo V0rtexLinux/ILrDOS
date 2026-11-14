@@ -26,15 +26,15 @@ C++ runtime for the robot (Raspberry Pi OS or the custom image in `os/`). Since 
 | **Embedded self-perception** | The robot senses each part of its body in the first person and uses that in conversation. It is honest that it has a *model of itself*, not proof of consciousness. |
 | **Autonomy** | Greets, tracks, roams, adjusts vision according to heat, restarts Wi-Fi, and speaks up when something fails. |
 
-### Central AI Chamber (GLaDOS-style facility control)
+### Central facility control (inspired by GLaDOS)
 
 `include/ilrdos/facility.hpp` lets ILrDOS supervise a whole facility the way GLaDOS does in Portal 1/2: a ring of cyan eyes, moving wall/ceiling panels, lights, ventilation, announcements, test chambers (scenes), personality cores and a facility lockdown. **Available only in the industrial body profile** (`BODY_PROFILE=industrial` in `ilrdos-robot.txt`, matching `examples/diy-robot/body/body-industrial.json`); on any other profile every `facility` command and voice phrase is refused. It only drives devices and robots already declared in `ilrdos-iot.txt` / `ilrdos-fleet.txt` (config: `ilrdos-facility.txt`, see `os/board/ilrdos/ilrdos-facility.txt.example`).
 
-There is **no neurotoxin and no armed turret**: the "toxin" is smoke-evacuation ventilation and the "turrets" are the eye ring (light/camera). `sensitive=1` devices and scenes stay terminal-only, `lockdown` stops the whole fleet, and the *morality core* (`facility core moralidade`) removes voice/AI control, leaving monitoring only.
+There is **no neurotoxin and no armed turret**: the "toxin" is smoke-evacuation ventilation and the "turrets" are the eye ring (light/camera). `sensitive=1` devices and scenes stay terminal-only, `lockdown` stops the whole fleet, and the *safe mode* (`facility core seguro`) removes voice/AI control, leaving monitoring only.
 
-Portal 2 behaviors: `facility rebuild` (GLaDOS wakes and rebuilds: lights flicker on, eye ring lights, panels open and close to assemble the chamber), `facility mood` (lighting follows the central core's mood via optional `humor_<name>` scenes) and `facility core batata` (core transfer: the "potato", battery-only mode that switches off non-essentials; only the terminal restores `normal`).
+Operation: `facility startup` (ordered start: lights, eye ring, panels open/close, optional `startup` scene) and `facility core seguro|economia|normal` (*safe*: monitoring only; *economia*: energy saving, switches off non-essentials; only the terminal restores `normal`). This is an industrial control system, not an entertainment animatronic: no theatrical behavior.
 
-Terminal: `facility status|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|vent on|off|scene <name>|announce <text>|rebuild|mood|core normal|moralidade|batata|lockdown|release`. Voice (PT-BR): *"bloqueio da fábrica"*, *"abra os painéis"*, *"ligue o anel de olhos"*. Test: `tests/facility-test.sh`.
+Terminal: `facility status|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|vent on|off|scene <name>|announce <text>|startup|core normal|seguro|economia|lockdown|release`. Voice (PT-BR): *"bloqueio da fábrica"*, *"abra os painéis"*, *"ligue o anel de olhos"*. Test: `tests/facility-test.sh`.
 
 ### Robot structure
 
