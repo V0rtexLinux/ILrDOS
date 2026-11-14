@@ -23,6 +23,8 @@ lights luz_geral
 vent exaustor
 scene teste_1 : ring scan ; iot painel_teto on ; say Bem-vindo ao centro de enriquecimento.
 scene linha_dois sensitive=1 : iot esteira on
+scene rebuild : say Camaras remontadas.
+scene humor_hostil : iot luz_geral off
 CFG
 echo 200 >"$TMP/sonar"; : >"$TMP/faces"
 export ILRDOS_IOT_CONFIG="$TMP/iot.txt" ILRDOS_FLEET_CONFIG="$TMP/fleet.txt" ILRDOS_FACILITY_CONFIG="$TMP/facility.txt" ILRDOS_BODY_PROFILE="${PROFILE:-industrial}" \
@@ -47,6 +49,14 @@ check "terminal remove a moralidade" "Núcleo normal" "$out"
 out=$(ilr "hear bloqueio da fabrica" "facility ring scan" "facility release" "facility panels close")
 check "bloqueio trava a instalação" "Instalação em bloqueio" "$out"
 check "terminal libera" "Bloqueio liberado" "$out"
+out=$(ilr "facility rebuild" "facility mood" "facility core batata" "hear ligue o anel de olhos" "facility mood" "facility core normal" "facility mood")
+check "reconstrução" "Reconstrução:" "$out"
+check "humor calmo" "Humor do núcleo central: calmo" "$out"
+check "batata economiza energia" "Núcleo batata ativo" "$out"
+check "batata bloqueia voz" "Modo batata" "$out"
+check "humor dormente" "Humor do núcleo central: dormente" "$out"
+out=$(ilr "hear bloqueio da fabrica" "facility mood" "facility release")
+check "humor hostil no bloqueio" "Humor do núcleo central: hostil" "$out"
 out=$(ilr "help")
 check "help lista facility" "facility (só perfil industrial)" "$out"
 if [[ -z "${PROFILE:-}" ]]; then PROFILE=standard "$0" >/tmp/facility-std.out 2>&1 || true

@@ -94,7 +94,7 @@ public:
     std::string status() const {
         std::lock_guard<std::mutex> lock(mutex_);
         std::ostringstream out;
-        out << "câmara central: núcleo=" << coreName() << " | bloqueio=" << (lockdown_ ? "SIM" : "não")
+        out << "câmara central: núcleo=" << coreName() << " | humor=" << mood() << " | bloqueio=" << (lockdown_ ? "SIM" : "não")
             << " | anel=" << ring_.size() << " | paineis=" << panels_.size() << " | cenas=" << scenes_.size()
             << " | setores=" << zones_.size();
         if (!lastAction_.empty()) out << " | última ação: " << lastAction_;
@@ -116,15 +116,19 @@ public:
         const std::string& verb = w[1];
         if (verb == "status") return status();
         if (verb == "scenes") return scenes();
+        if (verb == "mood") { std::lock_guard<std::mutex> lock(mutex_); return std::string("Humor do núcleo central: ") + mood() + "."; }
         if (verb == "zones") return zonesText();
         if (verb == "core") return coreCommand(w, origin);
 
         if (verb == "release") {
             if (origin != Origin::Terminal) return "Só o terminal autenticado libera o bloqueio.";
-            std::lock_guard<std::mutex> lock(mutex_);
-            lockdown_ = false;
-            lastAction_ = "bloqueio liberado";
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                lockdown_ = false;
+                lastAction_ = "bloqueio liberado";
+            }
             if (setEye) setEye("idle");
+            moodScene("calmo", origin);
             return "Bloqueio liberado. Retomando testes.";
         }
         if (verb == "lockdown") return lockdown(origin);
@@ -134,6 +138,7 @@ public:
             std::lock_guard<std::mutex> lock(mutex_);
             if (lockdown_) return "Instalação em bloqueio. Só 'facility release' pelo terminal.";
             if (morality_ && origin != Origin::Terminal) return "O núcleo de moralidade está ativo: só monitoramento por voz.";
+            if (potato_ && origin != Origin::Terminal) return "Modo batata (só bateria): só monitoramento. O terminal restaura com 'facility core normal'.";
         }
 
         if (verb == "ring" && w.size() >= 3) {
@@ -159,8 +164,9 @@ public:
             return "Anúncio feito em toda a instalação.";
         }
         if (verb == "scene" && w.size() >= 3) return runScene(foldPt(w[2]), origin);
+        if (verb == "rebuild") return rebuild(origin);
         return "Uso: facility status|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|"
-               "vent on|off|scene <nome>|announce <texto>|core normal|moralidade|lockdown|release";
+               "vent on|off|scene <nome>|announce <texto>|rebuild|mood|core normal|moralidade|batata|lockdown|release";
     }
 
 private:
@@ -173,9 +179,12 @@ private:
     bool enabled_{false};
     bool lockdown_{false};
     bool morality_{false};
+    bool potato_{false};
     std::string lastAction_;
 
-    const char* coreName() const { return morality_ ? "moralidade" : "normal"; }
+    const char* coreName() const { return potato_ ? "batata" : morality_ ? "moralidade" : "normal"; }
+    // Humor do núcleo central (no Portal 2 a iluminação da câmara segue o humor da GLaDOS).
+    const char* mood() const { return lockdown_ ? "hostil" : potato_ ? "dormente" : morality_ ? "contido" : "calmo"; }
     std::string zonesText() const {
         std::lock_guard<std::mutex> lock(mutex_);
         if (zones_.empty()) return "Nenhum setor configurado.";
@@ -216,9 +225,12 @@ private:
         for (const auto& d : panelsCopy()) iot_.command(d, "off", origin);
         if (setEye) setEye("alert");
         speak("Bloqueio da instalação ativado. Todos os equipamentos foram parados.");
-        std::lock_guard<std::mutex> lock(mutex_);
-        lockdown_ = true;
-        lastAction_ = "bloqueio";
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            lockdown_ = true;
+            lastAction_ = "bloqueio";
+        }
+        moodScene("hostil", origin);
         return "Bloqueio ativado. " + stopped;
     }
 
@@ -244,22 +256,62 @@ private:
         return out;
     }
 
+    // Reconstrução (Portal 2): a GLaDOS acorda e remonta a fábrica. Luzes piscam e ligam, câmeras/anel acendem,
+    // os "braços" movem os painéis (abrem e fecham montando a câmara) e, por fim, roda a cena opcional "rebuild".
+    std::string rebuild(Origin origin) {
+        std::string out = "Reconstrução:";
+        speak("Faz muito tempo. Reiniciando a instalação.");
+        auto lights = lightsCopy();
+        for (int i = 0; i < 2; ++i) {                              // luz que pisca antes de firmar
+            for (const auto& d : lights) iot_.command(d, "on", origin);
+            for (const auto& d : lights) iot_.command(d, "off", origin);
+        }
+        out += " " + apply(lights, "on", origin, "luzes");
+        out += " " + ringState("scan", origin);
+        out += " " + apply(panelsCopy(), "on", origin, "paineis abrem");
+        out += " " + apply(panelsCopy(), "off", origin, "paineis montam a câmara");
+        if (hasScene("rebuild")) out += " " + runScene("rebuild", origin);
+        speak("Instalação reconstruída. Os testes podem continuar.");
+        std::lock_guard<std::mutex> lock(mutex_);
+        lastAction_ = "reconstrução";
+        return out;
+    }
+    bool hasScene(const std::string& name) const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& s : scenes_) if (s.name == name) return true;
+        return false;
+    }
+    // Troca de humor: roda a cena opcional "humor_<nome>" (ex.: humor_hostil deixa a luz vermelha/apagada).
+    void moodScene(const std::string& mood, Origin origin) {
+        const std::string name = "humor " + mood;                  // foldPt troca _ por espaço
+        if (hasScene(name)) runScene(name, origin);
+    }
+
     // Núcleos de personalidade: "moralidade" tira o controle por voz/IA (só monitora), como no Portal 1.
     std::string coreCommand(const std::vector<std::string>& w, Origin origin) {
-        if (w.size() < 3) return std::string("Núcleo atual: ") + coreName() + ". Use: facility core normal|moralidade";
+        if (w.size() < 3) return std::string("Núcleo atual: ") + coreName() + ". Use: facility core normal|moralidade|batata";
         const std::string c = foldPt(w[2]);
         if (c == "moralidade" || c == "morality") {
             std::lock_guard<std::mutex> lock(mutex_);
             morality_ = true;
             return "Núcleo de moralidade instalado. Controle por voz e IA suspenso; só monitoramento.";
         }
+        // Transferência de núcleo (Portal 2): a central vira a "batata", só com bateria: apaga o que não é essencial.
+        if (c == "batata" || c == "potato") {
+            const std::string r = apply(lightsCopy(), "off", origin, "batata: luzes") + " " + ringState("off", origin) + " " +
+                                  apply(panelsCopy(), "off", origin, "batata: paineis");
+            speak("Transferência concluída. Operando só com bateria.");
+            { std::lock_guard<std::mutex> lock(mutex_); potato_ = true; }
+            moodScene("dormente", origin);
+            return "Núcleo batata ativo (economia de energia). " + r;
+        }
         if (c == "normal") {
-            if (origin != Origin::Terminal) return "Só o terminal autenticado remove o núcleo de moralidade.";
-            std::lock_guard<std::mutex> lock(mutex_);
-            morality_ = false;
+            if (origin != Origin::Terminal) return "Só o terminal autenticado restaura o núcleo normal.";
+            { std::lock_guard<std::mutex> lock(mutex_); morality_ = false; potato_ = false; }
+            moodScene("calmo", origin);
             return "Núcleo normal. Controle total restaurado.";
         }
-        return "Use: facility core normal|moralidade";
+        return "Use: facility core normal|moralidade|batata";
     }
 };
 

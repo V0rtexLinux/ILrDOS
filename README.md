@@ -32,7 +32,9 @@ C++ runtime for the robot (Raspberry Pi OS or the custom image in `os/`). Since 
 
 There is **no neurotoxin and no armed turret**: the "toxin" is smoke-evacuation ventilation and the "turrets" are the eye ring (light/camera). `sensitive=1` devices and scenes stay terminal-only, `lockdown` stops the whole fleet, and the *morality core* (`facility core moralidade`) removes voice/AI control, leaving monitoring only.
 
-Terminal: `facility status|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|vent on|off|scene <name>|announce <text>|core normal|moralidade|lockdown|release`. Voice (PT-BR): *"bloqueio da fábrica"*, *"abra os painéis"*, *"ligue o anel de olhos"*. Test: `tests/facility-test.sh`.
+Portal 2 behaviors: `facility rebuild` (GLaDOS wakes and rebuilds: lights flicker on, eye ring lights, panels open and close to assemble the chamber), `facility mood` (lighting follows the central core's mood via optional `humor_<name>` scenes) and `facility core batata` (core transfer: the "potato", battery-only mode that switches off non-essentials; only the terminal restores `normal`).
+
+Terminal: `facility status|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|vent on|off|scene <name>|announce <text>|rebuild|mood|core normal|moralidade|batata|lockdown|release`. Voice (PT-BR): *"bloqueio da fábrica"*, *"abra os painéis"*, *"ligue o anel de olhos"*. Test: `tests/facility-test.sh`.
 
 ### Robot structure
 
