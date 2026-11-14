@@ -39,3 +39,8 @@
 #                                                         lockdown = bloqueio geral; <cena> = roda a cena
 # watch fumaca ativo -> lockdown
 # watch temp_caldeira alta -> resfriar
+
+# ---- Detector de gás carbônico ligado ao bloqueio automático (o sensor `detector_gas` está em ilrdos-iot.txt)
+# Lido a cada 5 s. Leitura "alarme" => bloqueio geral + ventilação; "normal" por release_seconds => libera sozinho.
+# Leitura com falha (fio solto/GPIO indisponível) só registra, não dispara.
+watch detector_gas alarme -> lockdown
