@@ -45,3 +45,9 @@
 # device luz_sala gpio pin=17 alias=luz,lampada          relé ligado direto ao Raspberry Pi
 # sensor janela_quarto gpio pin=22 active=low on_text=fechada off_text=aberta alias=janela
 # sensor temp_sala w1 id=28-0123456789ab alias=temperatura_da_sala
+
+# ---- Detector de gás carbônico (fogo) da câmara central: sensor digital no GPIO 22 (BCM)
+# Módulos tipo MQ-x: a saída digital DO fica em nível ALTO sem gás e vai a BAIXO com gás => active=low.
+# DO é 5 V em muitos módulos: use divisor de tensão (1 kΩ + 2 kΩ) antes do GPIO. Ative o pull-up do pino (`gpio=22=pu` no
+# config.txt do Raspberry Pi) para um fio solto não parecer alarme. Leitura: "alarme" ou "normal".
+sensor detector_gas gpio pin=22 active=low on_text=alarme off_text=normal alias=gas,detector_de_gas,fogo
