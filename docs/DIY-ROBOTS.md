@@ -201,7 +201,7 @@ Usa o mesmo `ilrdos_body.py`:
 
 `python3 examples/diy-robot/body/ilrdos_body.py report examples/diy-robot/body/body-industrial.json`
 
-Aparência aproximada (estimativa por proporção): cabeça de uns 9 m (3 andares), chassi vertebral de uns 10 m, haste motorizada
+Aparência aproximada (estimativa por proporção): cabeça de 9 m, definida em `cabeca.altura_m` (a autovalidação exige no máximo metade da altura do corpo; 9 m são uns 3 andares), chassi vertebral de uns 10 m, haste motorizada
 de uns 20 m e casco do computador central com a base de uns 8 a 10 m.
 
 O que muda em relação à versão DIY:

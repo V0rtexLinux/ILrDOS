@@ -389,6 +389,7 @@
     ]
   },
   "cabeca": {
+    "altura_m": 9,
     "led": {
       "canal": "R",
       "min": 0,

@@ -225,6 +225,12 @@ def cmd_autovalida(man):
                 b = busway(cabo)
                 checa(b is not None and b["nominal_a"] * b["paralelos"] >= b["corrente_projeto_a"],
                       f"{nome}: busway subdimensionado")
+    # cabeça: tamanho opcional, tem de caber no corpo (escala.altura_m)
+    alt_c, alt_t = man.get("cabeca", {}).get("altura_m"), man.get("escala", {}).get("altura_m")
+    if alt_c is not None:
+        checa(alt_c > 0, "cabeca.altura_m inválida")
+        if alt_t:
+            checa(alt_c <= alt_t * 0.5, f"cabeça de {alt_c} m passa de metade do corpo ({alt_t} m)")
     # monotonia: mais complexidade nunca afina o cabo
     ref = next(iter(cabos.values()))
     aplicar_nivel(0); a = dimensionar(ref)["od_mm"]
