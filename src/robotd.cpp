@@ -15,6 +15,7 @@
 #include <ilrdos/autonomy.hpp>
 #include <ilrdos/conversation.hpp>
 #include <ilrdos/fleet.hpp>
+#include <ilrdos/facility.hpp>
 #include <ilrdos/impact.hpp>
 #include <ilrdos/iot.hpp>
 #include <ilrdos/motors.hpp>
@@ -162,6 +163,7 @@ struct Services {
     ImpactSensor& impact;
     IotHub& iot;
     FleetHub& fleet;
+    FacilityCore& facility;
     FaceStore& faces;
     Conversation& conversation;
     RobotStructure& structure;
@@ -225,7 +227,7 @@ std::string commandReply(const std::string& raw, Services& s) {
                "face list|who|enroll <nome>|forget <nome|all>|cancel | move forward|back|left|right [ms] [vel] | "
                "turn left|right [graus] | untwist [zero] | stop | iot list|read <nome>|<dispositivo> on|off|toggle | "
                "fleet list|status [nome]|stop all|<robô|grupo> start|stop|pause|dock|<robô> run <comando> | say <texto> | hear <texto> | "
-               "voice status | structure [map|power|backbone|brain|datalink|casing|gas|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
+               "facility status|map|scenes|ring|panels|lights|vent|scene <nome>|announce|core|lockdown|release | voice status | structure [map|power|backbone|brain|datalink|casing|gas|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
                "O terminal controla somente funções autorizadas do robô.";
     }
     if (command == "status") {
@@ -296,6 +298,7 @@ std::string commandReply(const std::string& raw, Services& s) {
         if (w.size() == 3) return s.fleet.command(w[1], w[2], Origin::Terminal);
         return "Uso: fleet list | status [nome] | stop all | <robô|grupo> start|stop|pause|dock | <robô> run <comando>";
     }
+    if (!w.empty() && w[0] == "facility") return s.facility.command(w, Origin::Terminal);
     if (command == "iot list") return s.iot.list();
     if (w.size() == 3 && w[0] == "iot" && w[1] == "read") return s.iot.read(w[2]);
     if (w.size() == 3 && w[0] == "iot") return s.iot.command(w[1], w[2], Origin::Terminal);
@@ -450,6 +453,8 @@ int runServer(const Options& o) {
     act.fleetModel = [&](const std::string& r, const std::string& a) { return fleet.command(r, a, Origin::Model); };
     act.fleetStatus = [&](const std::string& r) { return fleet.status(r); };
     act.fleetStopAll = [&] { return fleet.stopAll(Origin::Voice); };
+    FacilityCore* facilityPtr = nullptr;
+    act.facility = [&](const std::vector<std::string>& w) { return facilityPtr ? facilityPtr->command(w, Origin::Voice) : std::string("Câmara central indisponível."); };
     act.iotRead = [&](const std::string& d) { return iot.read(d); };
     act.devices = [&] { return iot.infos(); };
     act.look = [&] { return vision.recent(1500); };
@@ -532,7 +537,13 @@ int runServer(const Options& o) {
     drive.setGuard([&] { return structure.motionBlockReason(); });   // tensão baixa / calor crítico = não anda
     std::cout << "[estrutura] " << structure.summary() << " | " << RobotStructure::map() << '\n';
 
-    Services services{robot, vision, autonomy, drive, impact, iot, fleet, faces, conversation, structure};
+    FacilityCore facility(iot, fleet, cfg.str("FACILITY_CONFIG", "/boot/ilrdos-facility.txt"));
+    std::cout << "[camara-central] " << facility.load() << '\n';
+    facilityPtr = &facility;
+    facility.say = [&](const std::string& t) { conversation.announce(t); };
+    facility.setEye = [&](const std::string& st) { robot.setState(st); };
+
+    Services services{robot, vision, autonomy, drive, impact, iot, fleet, facility, faces, conversation, structure};
     FailureTracker failures;
 
     addrinfo hints{};

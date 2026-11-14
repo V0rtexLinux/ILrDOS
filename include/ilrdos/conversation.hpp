@@ -39,6 +39,7 @@ struct Actuators {
     std::function<std::string(const std::string& robot, const std::string& action)> fleetModel;   // marca [[fleet ...]] do modelo
     std::function<std::string(const std::string& robot)> fleetStatus;
     std::function<std::string()> fleetStopAll;
+    std::function<std::string(const std::vector<std::string>& words)> facility;   // câmara central (origem: voz)
     std::function<std::optional<double>()> distanceCm;
     std::function<bool()> canMove;
     std::function<void(const std::string& state)> setEye;     // só think/listen/idle
@@ -379,6 +380,19 @@ private:
                 return "Parei. " + act_.fleetStopAll();
             }
             return "Parei.";
+        }
+
+        // ---- câmara central (estilo GLaDOS): "bloqueio da fábrica", "abra os painéis", "ligue o anel de olhos"
+        if (act_.facility) {
+            if (hasAnyPhrase(c, {"bloqueio da fabrica", "bloqueio geral", "trave a fabrica", "tranque a fabrica"})) return act_.facility({"facility", "lockdown"});
+            if (hasAnyPhrase(c, {"abra os paineis", "abrir paineis"})) return act_.facility({"facility", "panels", "open"});
+            if (hasAnyPhrase(c, {"feche os paineis", "fechar paineis"})) return act_.facility({"facility", "panels", "close"});
+            if (hasAnyPhrase(c, {"anel de olhos", "anel de luz"})) {
+                if (hasAnyPhrase(c, {"desligue", "apague"})) return act_.facility({"facility", "ring", "off"});
+                return act_.facility({"facility", "ring", "scan"});
+            }
+            if (hasAnyPhrase(c, {"ligue a ventilacao", "ligar ventilacao", "evacuar fumaca"})) return act_.facility({"facility", "vent", "on"});
+            if (hasAnyPhrase(c, {"camara central", "estado da fabrica"})) return act_.facility({"facility", "status"});
         }
 
         const bool faceWord = hasAnyPhrase(c, {"rosto", "rostos", "cara", "face"});

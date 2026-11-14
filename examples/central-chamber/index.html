@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ILrDOS — Câmara Central</title>
+<style>
+:root{--bg:#07090b;--fg:#cfe9ee;--ac:#19d3ff;--bt:#10181c;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font:14px system-ui,sans-serif}
+#c{display:block;width:100%;height:calc(100% - 118px)}
+#ui{height:118px;padding:8px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;align-content:center}
+button{background:var(--bt);color:var(--fg);border:1px solid #234;border-radius:8px;padding:10px 4px;font:inherit}
+button:active{border-color:var(--ac)}
+#st{position:fixed;left:8px;top:calc(8px + env(safe-area-inset-top,0px));font:12px monospace;color:var(--ac);text-shadow:0 0 6px #000}
+</style></head><body>
+<canvas id="c"></canvas><div id="st"></div>
+<div id="ui">
+<button data-a="scan">Anel: scan</button><button data-a="alert">Anel: alerta</button><button data-a="off">Anel: off</button>
+<button data-a="open">Painéis: abrir</button><button data-a="close">Painéis: fechar</button><button data-a="lock">Bloqueio</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r149/three.min.js"></script>
+<script>
+// Visual da câmara central. Os botões espelham os comandos `facility ring|panels|lockdown` do ILrDOS.
+const cv=document.getElementById('c'),st=document.getElementById('st');
+const R=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+const S=new THREE.Scene();S.background=new THREE.Color(0x07090b);S.fog=new THREE.Fog(0x07090b,14,34);
+const cam=new THREE.PerspectiveCamera(65,1,.1,80);cam.position.set(0,1.6,9);
+S.add(new THREE.AmbientLight(0x3a4650,1.1));
+const L=new THREE.PointLight(0x9fe8ff,1.2,30);L.position.set(0,6,0);S.add(L);
+const dark=new THREE.MeshStandardMaterial({color:0x1b2126,roughness:.8,metalness:.5});
+const g=new THREE.Mesh(new THREE.CylinderGeometry(14,14,22,48,1,true),new THREE.MeshStandardMaterial({color:0x14191d,side:THREE.BackSide,roughness:.9}));g.position.y=8;S.add(g);
+const fl=new THREE.Mesh(new THREE.CircleGeometry(14,48),dark);fl.rotation.x=-Math.PI/2;S.add(fl);
+const disc=new THREE.Mesh(new THREE.CylinderGeometry(3,3,.12,48),new THREE.MeshStandardMaterial({color:0xdff6ff,emissive:0x7fdfff,emissiveIntensity:.9}));disc.position.y=.06;S.add(disc);
+const rim=new THREE.Mesh(new THREE.TorusGeometry(3.15,.06,8,64),dark);rim.rotation.x=Math.PI/2;rim.position.y=.1;S.add(rim);
+// anel de olhos ciano: 3 fileiras em volta da sala
+const eyes=[],eyeGeo=new THREE.SphereGeometry(.16,12,12);
+[[3.2,24,12.6],[5.4,22,12.6],[7.6,20,12.6]].forEach(([y,n,r],k)=>{for(let i=0;i<n;i++){
+ const a=i/n*Math.PI*2,m=new THREE.MeshBasicMaterial({color:0x19d3ff});const e=new THREE.Mesh(eyeGeo,m);
+ e.position.set(Math.cos(a)*r,y,Math.sin(a)*r);S.add(e);eyes.push({m,k,i});
+ const arm=new THREE.Mesh(new THREE.BoxGeometry(.5,.35,.9),dark);arm.position.set(Math.cos(a)*(r+.3),y+.1,Math.sin(a)*(r+.3));arm.lookAt(0,y,0);S.add(arm);}});
+// painéis de teto
+const panels=[];for(let i=0;i<16;i++){const a=i/16*Math.PI*2,p=new THREE.Mesh(new THREE.BoxGeometry(3,2.6,.12),dark);
+ const pv=new THREE.Group();pv.position.set(Math.cos(a)*11.5,12.5,Math.sin(a)*11.5);pv.rotation.y=-a+Math.PI/2;p.position.y=-1.3;pv.add(p);pv.rotation.x=0;S.add(pv);panels.push({pv,a});}
+let ring='scan',panelT=0,panelGoal=0,lock=false,t=0;
+function label(){st.textContent='anel='+ring+' | painéis='+(panelGoal?'abertos':'fechados')+' | bloqueio='+(lock?'SIM':'não')}
+document.getElementById('ui').onclick=e=>{const a=e.target.dataset.a;if(!a)return;
+ if(a==='lock'){lock=!lock;if(lock){ring='alert';panelGoal=0}else ring='scan'}
+ else if(lock)return;else if(a==='open')panelGoal=1;else if(a==='close')panelGoal=0;else ring=a;label()};
+function size(){const w=cv.clientWidth,h=cv.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}
+addEventListener('resize',size);size();label();
+(function loop(){t+=.016;panelT+=(panelGoal-panelT)*.04;
+ panels.forEach(p=>p.pv.rotation.x=-panelT*.9);
+ eyes.forEach(e=>{const on=ring!=='off',al=ring==='alert'&&Math.floor(t*4)%2===0;
+  e.m.color.setHex(!on?0x0a1a1f:ring==='alert'?(al?0xff2a2a:0x551010):(.6+.4*Math.sin(t*3+e.i*.5)>.5?0x19d3ff:0x0b7a99))});
+ cam.position.x=Math.sin(t*.12)*2;cam.lookAt(0,4.5,-2);R.render(S,cam);requestAnimationFrame(loop)})();
+</script></body></html>
