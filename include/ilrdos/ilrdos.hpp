@@ -11,6 +11,7 @@
 #include <ilrdos/impact.hpp>
 #include <ilrdos/iot.hpp>
 #include <ilrdos/fleet.hpp>
+#include <ilrdos/facility.hpp>   // câmara central de IA: controla a fábrica como a GLaDOS
 #include <ilrdos/autonomy.hpp>
 #include <ilrdos/conversation.hpp>
 
