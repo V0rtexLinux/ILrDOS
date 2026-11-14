@@ -192,43 +192,41 @@ vertebral, watchdog em hardware, energia com bateria de reserva (BMS), arrefecim
 corta as duas veias, a haste, a fita LED e o arrefecimento (para não soprar o fogo). O mesmo módulo simula o chassi vertebral (corte e religação em trava), a haste (passos e fim de
 curso) e a cabeça vermelha (só canal R, limite térmico): `ilrdos_body.py sim-fogo`. Teste: `tests/diy-body-test.sh`.
 
-## Versão industrial gigante (porte de fábrica)
+## Versão industrial (porte de fábrica)
 
-Perfil para fábricas e indústrias grandes, com o robô em escala gigante (80 m de altura e 110 m de envergadura por padrão, estimativa um pouco maior que a GLaDOS (não existe medida oficial), suspenso em
-pórtico de trilhos no teto; mude só `escala.altura_m` e todos os comprimentos de cabo escalam junto). Fica em `examples/diy-robot/body/body-industrial.json` e usa o mesmo `ilrdos_body.py`:
+Perfil para fábricas e indústrias grandes, com o robô em escala grande: **50 m de altura e 70 m de envergadura**, suspenso em pórtico
+de trilhos no teto. É um porte intermediário que escolhi entre 30 e 80 m, sem medida oficial de referência (nem da GLaDOS).
+Mude só `escala.altura_m` em `examples/diy-robot/body/body-industrial.json` e todos os comprimentos de cabo escalam junto.
+Usa o mesmo `ilrdos_body.py`:
 
 `python3 examples/diy-robot/body/ilrdos_body.py report examples/diy-robot/body/body-industrial.json`
 
+Aparência aproximada (estimativa por proporção): cabeça de uns 9 m (3 andares), chassi vertebral de uns 10 m, haste motorizada
+de uns 20 m e casco do computador central com a base de uns 8 a 10 m.
+
 O que muda em relação à versão DIY:
 
-- **Comprimento real dos cabos** (67 a 890 m com a altura padrão de 80 m), com peso total em kg e **queda de tensão** (%) nos de potência. Energia trifásica de
-  690 V (L1/L2/L3/PE de 400 A), 6 servomotores de 250 A e banco de UPS de 400 V. Acima do maior condutor da tabela (630 mm²) a
-  corrente é dividida em condutores em paralelo.
+- **Comprimento real dos cabos** (de 42 a 556 m com a altura de 50 m), com peso total em kg e **queda de tensão** (%) nos de
+  potência. Energia trifásica de 400 V (L1/L2/L3 de 256 A e PE de 128 A), 5 servomotores de 170 A e banco de UPS de 400 V.
+  Acima do maior condutor da tabela a corrente é dividida em condutores em paralelo.
 - **Fibra óptica** nos cabos de dados com mais de 90 m (o cobre Ethernet passa de 100 m e perde sinal), o que o relatório indica na coluna `meio`.
 - **Segurança de fábrica**: CLP de segurança SIL3, laços duplos de parada de emergência, cortinas de luz e scanners laser de zona,
-  gaiola com porta intertravada e bloqueio/etiquetagem (LOTO), extinção fixa por gás inerte, hidráulica/pneumática com 48 válvulas
+  gaiola com porta intertravada e bloqueio/etiquetagem (LOTO), extinção fixa por gás inerte, hidráulica/pneumática com 34 válvulas
   e gateway OPC UA/Modbus para MES/ERP.
-- **Nível de complexidade 21** (~2000 pontos, mais de 8700 condutores). Quando um cabo passa de 200 mm de diâmetro o relatório avisa e `ilrdos_body.py plano <json>` gera o plano:
+- **Nível de complexidade 17** (~1700 pontos, mais de 5300 condutores, 67 sensores de temperatura, 34 de corrente, 22 de vibração
+  e 45 de proximidade). Quando um cabo passa de 200 mm de diâmetro o relatório avisa e `ilrdos_body.py plano <json>` gera o plano:
   **divisão** em cabos iguais em paralelo de no máximo 150 mm (os condutores são repartidos, os maiores primeiro; em trifásico,
   cada cabo deve levar as três fases + PE) e **barramento blindado (busway)** para os condutores de potência (>=100 A), com
   corrente nominal padrão (800 a 6300 A), número de polos, carcaças de 4 polos e barramentos em paralelo acima de 6300 A.
-  Potência vai em busway no tronco (cabos só nos ramais); sinal (sensores, CLP de segurança) não vai em busway e fica dividido em
-  bandejas. Com o perfil industrial: energia principal 1× 3200 A, motores da haste 3× 2000 A, bateria 1× 2500 A e hidráulica
-  1× 1000 A; sem busway seriam 49, 189, 146 e 128 cabos de ~150 mm.
+  Potência vai em busway no tronco (cabos só nos ramais); sinal (sensores, CLP de segurança) e potência abaixo de 100 A (hidráulica)
+  não vão em busway e ficam divididos em bandejas. Com este perfil: energia principal 1× 2000 A, motores da haste 3× 1250 A e
+  bateria 1× 1600 A; sem busway seriam 15, 60 e 65 cabos de ~150 mm.
+
+Estimativa (sem fonte, ordem de grandeza): **4 a 7 anos e US$ 250 a 600 milhões**.
 
 Os números são dimensionamento de projeto, não projeto elétrico aprovado: em fábrica real, cabos, proteções e a gaiola precisam de
 engenheiro eletricista, norma (IEC 60204-1, ISO 13849 / IEC 62061) e aceite do responsável pela segurança. O ILrDOS continua não
 sendo circuito de segurança.
-
-### Versão industrial média (recomendada)
-
-`examples/diy-robot/body/body-industrial-medio.json`: 30 m de altura e 40 m de envergadura, 4 servomotores de 100 A, energia
-trifásica de 400 V (160 A por fase), 48 sensores de temperatura e hidráulica de 60 A. Mantém a segurança (CLP SIL3, laços duplos,
-gaiola, extinção por gás), a redundância A/B e a visão vermelha; corta tamanho, corrente e número de sensores. Fica no nível 15
-(contra 21 da gigante), com 3600 condutores (contra 8700). Comandos: `report`, `plano` e `autovalida` com esse arquivo.
-
-Estimativa (sem fonte, ordem de grandeza): **3 a 5 anos e US$ 120 a 300 milhões**, contra 6 a 10 anos e US$ 500 milhões a
-1,2 bilhão da gigante de 80 m. Potência no tronco: energia principal 1× 1000 A, motores 2× 800 A e bateria 1× 800 A em busway.
 
 ### Autovalidação
 

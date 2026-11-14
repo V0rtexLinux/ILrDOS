@@ -32,6 +32,3 @@ print("[ok]   industrial: todo cabo dividido fica com Ø <= 150 mm")
 PY
 python3 -I "$B" autovalida | grep -q " 0 falhas" && echo "[ok]   autovalidação (perfil DIY)"
 python3 -I "$B" autovalida "$IND" | grep -q " 0 falhas" && echo "[ok]   autovalidação (perfil industrial)"
-MED="$(dirname "$0")/../examples/diy-robot/body/body-industrial-medio.json"
-python3 -I "$B" autovalida "$MED" | grep -q " 0 falhas" && echo "[ok]   autovalidação (perfil industrial médio)"
-python3 -I "$B" plano "$MED" | grep -q "busway no tronco" && echo "[ok]   médio: plano com busway"

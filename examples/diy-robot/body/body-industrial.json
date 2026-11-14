@@ -1,5 +1,5 @@
 {
-  "nome": "ILrDOS-industrial-gigante-v1",
+  "nome": "ILrDOS-industrial-v1",
   "cabos": {
     "energia_principal": {
       "tipo": "power",
@@ -8,23 +8,23 @@
       "condutores": [
         {
           "nome": "L1",
-          "corrente_a": 400
+          "corrente_a": 256
         },
         {
           "nome": "L2",
-          "corrente_a": 400
+          "corrente_a": 256
         },
         {
           "nome": "L3",
-          "corrente_a": 400
+          "corrente_a": 256
         },
         {
           "nome": "PE",
-          "corrente_a": 200
+          "corrente_a": 128
         }
       ],
       "comprimento_m": 60,
-      "tensao_v": 690
+      "tensao_v": 400
     },
     "modbus_fabrica": {
       "tipo": "rs485",
@@ -49,7 +49,7 @@
         },
         {
           "nome": "plc",
-          "n": 24
+          "n": 17
         }
       ],
       "comprimento_m": 150
@@ -77,11 +77,11 @@
     },
     "dados_visao": {
       "tipo": "lanes",
-      "lanes": 16,
+      "lanes": 11,
       "gbps_por_lane": 0.5,
       "blindagem": true,
       "descricao": "camera -> cerebro, 8 pares diferenciais (CSI/LVDS) + clock + I2C + sync + 5V",
-      "extra": 24,
+      "extra": 19,
       "comprimento_m": 120
     },
     "dados_rostos": {
@@ -108,59 +108,51 @@
       "condutores": [
         {
           "nome": "M1+",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M1-",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M2+",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M2-",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M3+",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M3-",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M4+",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M4-",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M5+",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "M5-",
-          "corrente_a": 250
-        },
-        {
-          "nome": "M6+",
-          "corrente_a": 250
-        },
-        {
-          "nome": "M6-",
-          "corrente_a": 250
+          "corrente_a": 170
         },
         {
           "nome": "enc",
-          "n": 12
+          "n": 10
         },
         {
           "nome": "fimcurso",
-          "n": 24
+          "n": 20
         }
       ],
       "comprimento_m": 40,
@@ -204,19 +196,19 @@
       "condutores": [
         {
           "nome": "UPS+",
-          "corrente_a": 300
+          "corrente_a": 192
         },
         {
           "nome": "UPS-",
-          "corrente_a": 300
+          "corrente_a": 192
         },
         {
           "nome": "sense",
-          "n": 32
+          "n": 22
         },
         {
           "nome": "balance",
-          "n": 32
+          "n": 22
         }
       ]
     },
@@ -255,31 +247,31 @@
       "condutores": [
         {
           "nome": "temp",
-          "n": 96
+          "n": 67
         },
         {
           "nome": "corrente",
-          "n": 48
+          "n": 34
         },
         {
           "nome": "vibracao",
-          "n": 32
+          "n": 22
         },
         {
           "nome": "imu",
-          "n": 24
+          "n": 17
         },
         {
           "nome": "proximidade",
-          "n": 64
+          "n": 45
         },
         {
           "nome": "vcc",
-          "corrente_a": 8
+          "corrente_a": 7
         },
         {
           "nome": "gnd",
-          "corrente_a": 8
+          "corrente_a": 7
         }
       ],
       "comprimento_m": 80
@@ -300,27 +292,27 @@
       "condutores": [
         {
           "nome": "estop_laco_A",
-          "n": 8
+          "n": 6
         },
         {
           "nome": "estop_laco_B",
-          "n": 8
+          "n": 6
         },
         {
           "nome": "cortina_luz",
-          "n": 32
+          "n": 22
         },
         {
           "nome": "scanner_laser",
-          "n": 24
+          "n": 17
         },
         {
           "nome": "porta_gaiola",
-          "n": 16
+          "n": 11
         },
         {
           "nome": "cadeado_loto",
-          "n": 8
+          "n": 6
         },
         {
           "nome": "vcc24",
@@ -340,19 +332,19 @@
       "condutores": [
         {
           "nome": "bomba+",
-          "corrente_a": 120
+          "corrente_a": 84
         },
         {
           "nome": "bomba-",
-          "corrente_a": 120
+          "corrente_a": 84
         },
         {
           "nome": "valvula",
-          "n": 48
+          "n": 34
         },
         {
           "nome": "pressao",
-          "n": 24
+          "n": 17
         }
       ]
     }
@@ -393,13 +385,6 @@
         "min": 0,
         "max": 100,
         "passo_max": 5
-      },
-      {
-        "id": "m6",
-        "nome": "avanço",
-        "min": 0,
-        "max": 100,
-        "passo_max": 5
       }
     ]
   },
@@ -417,7 +402,7 @@
     }
   },
   "barramento": {
-    "limite_corrente_a": 12.0,
+    "limite_corrente_a": 10.0,
     "limite_temp_c": 85
   },
   "pecas": [
@@ -514,7 +499,7 @@
     {
       "nome": "FPGA de roteamento visão/rosto/áudio",
       "cabo": "barramento_redundante_b",
-      "peso": 30
+      "peso": 21
     },
     {
       "nome": "switch Ethernet 1,3 Gbps",
@@ -559,7 +544,7 @@
     {
       "nome": "segundo computador (cérebro reserva)",
       "cabo": "energia_principal",
-      "peso": 40
+      "peso": 31
     },
     {
       "nome": "registrador de eventos (caixa-preta)",
@@ -567,14 +552,14 @@
       "peso": 15
     },
     {
-      "nome": "pórtico de trilhos de teto (6 eixos)",
+      "nome": "pórtico de trilhos de teto (5 eixos)",
       "cabo": "motores_haste",
-      "peso": 80
+      "peso": 59
     },
     {
-      "nome": "6 servomotores industriais 250 A",
+      "nome": "5 servomotores industriais 170 A",
       "cabo": "motores_haste",
-      "peso": 90
+      "peso": 63
     },
     {
       "nome": "CLP de segurança SIL3 (parada categoria 0/1)",
@@ -584,37 +569,37 @@
     {
       "nome": "cortinas de luz + scanners laser de zona",
       "cabo": "seguranca_plc",
-      "peso": 50
+      "peso": 38
     },
     {
       "nome": "gaiola com porta intertravada + LOTO",
       "cabo": "seguranca_plc",
-      "peso": 30
+      "peso": 24
     },
     {
-      "nome": "transformador 690 V + disjuntor geral",
+      "nome": "transformador 400 V + disjuntor geral",
       "cabo": "energia_principal",
-      "peso": 70
+      "peso": 52
     },
     {
-      "nome": "banco de UPS 400 V",
+      "nome": "banco de UPS 400 V (190 A)",
       "cabo": "bateria_reserva_bms",
-      "peso": 60
+      "peso": 42
     },
     {
-      "nome": "hidráulica/pneumática (bomba 120 A, 48 válvulas)",
+      "nome": "hidráulica/pneumática (bomba 84 A, 34 válvulas)",
       "cabo": "hidraulica_pneumatica",
-      "peso": 70
+      "peso": 49
     },
     {
-      "nome": "96 sensores de temperatura + 32 de vibração",
+      "nome": "67 sensores de temperatura + 22 de vibração",
       "cabo": "sensores_distribuidos",
-      "peso": 64
+      "peso": 45
     },
     {
       "nome": "servidor de borda redundante (cérebro A/B)",
       "cabo": "telemetria_watchdog",
-      "peso": 80
+      "peso": 62
     },
     {
       "nome": "gateway OPC UA/Modbus para MES/ERP",
@@ -624,14 +609,14 @@
     {
       "nome": "extinção fixa (CO2/gás inerte) da sala do robô",
       "cabo": "detector_co2",
-      "peso": 50
+      "peso": 38
     }
   ],
   "escala": {
-    "altura_m": 80,
+    "altura_m": 50,
     "altura_ref_m": 18,
-    "envergadura_m": 110,
+    "envergadura_m": 70,
     "suspenso_em": "pórtico de trilhos no teto do galpão",
-    "obs": "Estimativa: não há medida oficial da GLaDOS (Portal Wiki, Combine OverWiki e Wikipedia não trazem número); ela é descrita como massa pendurada do teto numa câmara octogonal enorme. 80 m foi escolhido para ficar um pouco maior que ela. Mude só altura_m: os comprimentos dos cabos (definidos para 18 m em altura_ref_m) escalam junto. Movimento só dentro de gaiola com intertravamento."
+    "obs": "Porte grande (50 m), escolhido como ponto intermediário entre 30 m e 80 m; valores interpolados, sem medida oficial de referência. Mude só altura_m: os comprimentos dos cabos (definidos para 18 m em altura_ref_m) escalam junto. Movimento só dentro de gaiola com intertravamento."
   }
 }
