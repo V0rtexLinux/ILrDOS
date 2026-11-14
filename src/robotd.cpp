@@ -227,7 +227,7 @@ std::string commandReply(const std::string& raw, Services& s) {
                "face list|who|enroll <nome>|forget <nome|all>|cancel | move forward|back|left|right [ms] [vel] | "
                "turn left|right [graus] | untwist [zero] | stop | iot list|read <nome>|<dispositivo> on|off|toggle | "
                "fleet list|status [nome]|stop all|<robô|grupo> start|stop|pause|dock|<robô> run <comando> | say <texto> | hear <texto> | "
-               "facility status|map|scenes|ring|panels|lights|vent|scene <nome>|announce|core|lockdown|release | voice status | structure [map|power|backbone|brain|datalink|casing|gas|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
+               "facility (só perfil industrial) status|scenes|ring|panels|lights|vent|scene <nome>|announce|core|lockdown|release | voice status | structure [map|power|backbone|brain|datalink|casing|gas|visor] | impact [test] | autonomy on|off|status|motion off|track|roam | exit. "
                "O terminal controla somente funções autorizadas do robô.";
     }
     if (command == "status") {
@@ -538,6 +538,7 @@ int runServer(const Options& o) {
     std::cout << "[estrutura] " << structure.summary() << " | " << RobotStructure::map() << '\n';
 
     FacilityCore facility(iot, fleet, cfg.str("FACILITY_CONFIG", "/boot/ilrdos-facility.txt"));
+    facility.setProfile(cfg.str("BODY_PROFILE", "standard"));
     std::cout << "[camara-central] " << facility.load() << '\n';
     facilityPtr = &facility;
     facility.say = [&](const std::string& t) { conversation.announce(t); };

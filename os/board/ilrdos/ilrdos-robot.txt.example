@@ -49,3 +49,7 @@ MOTION_AUTONOMY=auto
 
 # ---- Reconhecimento de fala (Pi OS: baixe o modelo Vosk e aponte aqui)
 # VOSK_MODEL=/usr/share/ilrdos/models/vosk-pt
+
+# ---- Perfil do corpo: "industrial" (examples/diy-robot/body/body-industrial.json) habilita a câmara central
+#      (comandos `facility`, ilrdos-facility.txt). Qualquer outro valor mantém o recurso desligado.
+BODY_PROFILE=standard

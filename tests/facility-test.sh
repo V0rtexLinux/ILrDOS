@@ -25,7 +25,7 @@ scene teste_1 : ring scan ; iot painel_teto on ; say Bem-vindo ao centro de enri
 scene linha_dois sensitive=1 : iot esteira on
 CFG
 echo 200 >"$TMP/sonar"; : >"$TMP/faces"
-export ILRDOS_IOT_CONFIG="$TMP/iot.txt" ILRDOS_FLEET_CONFIG="$TMP/fleet.txt" ILRDOS_FACILITY_CONFIG="$TMP/facility.txt" \
+export ILRDOS_IOT_CONFIG="$TMP/iot.txt" ILRDOS_FLEET_CONFIG="$TMP/fleet.txt" ILRDOS_FACILITY_CONFIG="$TMP/facility.txt" ILRDOS_BODY_PROFILE="${PROFILE:-industrial}" \
        ILRDOS_FACE_DB="$TMP/faces.db" ILRDOS_SIM_FACES_FILE="$TMP/faces" ILRDOS_SIM_SONAR_FILE="$TMP/sonar" ILRDOS_SIM_MOTORS=1 ILRDOS_SIM_SILENT=1
 "${ROOT}/build/ilrdosd" --simulate --bind 127.0.0.1 --port "$PORT" --token-file "$TMP/token" --config /nonexistent >"$TMP/daemon.log" 2>&1 &
 PID=$!
@@ -37,9 +37,8 @@ ilr() { { cat "$TMP/token"; for c in "$@"; do echo "$c"; sleep 0.3; done; echo e
 fail=0
 check() { if grep -qF -- "$2" <<<"$3"; then echo "ok   - $1"; else echo "FALHA - $1 (esperava: $2)"; echo "$3" | sed 's/^/        /'; fail=1; fi; }
 
-out=$(ilr "facility status" "facility map" "facility ring scan" "facility panels open" "facility scene teste_1" "facility scene linha_dois")
+out=$(ilr "facility status" "facility ring scan" "facility panels open" "facility scene teste_1" "facility scene linha_dois")
 check "status da câmara" "câmara central: núcleo=normal" "$out"
-check "mapa da sala" "disco central" "$out"
 check "anel de olhos" "Anel de olhos: scan" "$out"
 check "cena de teste" "Câmara teste 1:" "$out"
 out=$(ilr "facility core moralidade" "hear abra os paineis" "facility core normal" "facility ring off")
@@ -49,5 +48,8 @@ out=$(ilr "hear bloqueio da fabrica" "facility ring scan" "facility release" "fa
 check "bloqueio trava a instalação" "Instalação em bloqueio" "$out"
 check "terminal libera" "Bloqueio liberado" "$out"
 out=$(ilr "help")
-check "help lista facility" "facility status" "$out"
+check "help lista facility" "facility (só perfil industrial)" "$out"
+if [[ -z "${PROFILE:-}" ]]; then PROFILE=standard "$0" >/tmp/facility-std.out 2>&1 || true
+  grep -q "so funciona no perfil industrial\|só funciona no perfil industrial" /tmp/facility-std.out && echo "ok   - perfil padrão recusa facility" || { echo "FALHA - perfil padrão deveria recusar"; fail=1; }
+fi
 exit $fail

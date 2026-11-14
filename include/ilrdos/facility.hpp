@@ -6,6 +6,8 @@
 // abre nenhuma porta nova para o mundo físico. NÃO existe neurotoxina nem torreta armada: o equivalente seguro da
 // "toxina" é a ventilação/evacuação de fumaça, e o equivalente das "torretas" é o anel de olhos (luz + câmera).
 // Dispositivos sensitive=1 continuam só no terminal autenticado, como no resto do ILrDOS.
+// Só funciona com o perfil de corpo industrial (BODY_PROFILE=industrial, ver examples/diy-robot/body/body-industrial.json);
+// em qualquer outro perfil todos os comandos facility respondem que o recurso está indisponível.
 #pragma once
 
 #include <functional>
@@ -40,7 +42,15 @@ public:
     //   lights <dispositivo>               iluminação geral
     //   vent   <dispositivo>               ventilação/exaustão (evacuação de fumaça)
     //   scene  <nome> [sensitive=1] : ação ; ação ; ...     (câmara de teste = cena)
+    // Liga o módulo só para o perfil industrial. Fora dele nada é carregado nem executado.
+    void setProfile(const std::string& profile) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        enabled_ = (foldPt(profile) == "industrial");
+    }
+    bool enabled() const { std::lock_guard<std::mutex> lock(mutex_); return enabled_; }
+
     std::string load() {
+        if (!enabled()) return "desativada (disponível só no perfil industrial: BODY_PROFILE=industrial)";
         std::lock_guard<std::mutex> lock(mutex_);
         zones_.clear(); ring_.clear(); panels_.clear(); lights_.clear(); vents_.clear(); scenes_.clear();
         std::ifstream in(path_);
@@ -81,21 +91,6 @@ public:
                ", paineis=" + std::to_string(panels_.size()) + ", cenas=" + std::to_string(scenes_.size()) + ")";
     }
 
-    // Desenho em texto da câmara central (a sala da imagem de referência).
-    static std::string map() {
-        return "\n"
-               "        ___________________________________\n"
-               "       /  [=] [=] [=] [=] [=] [=] [=] [=]  \\   <- painéis de teto (panel)\n"
-               "      /   (o)   (o)   (o)   (o)   (o)   (o)  \\   <- anel 3 de olhos ciano (ring)\n"
-               "     |   (o)   (o)   (o)   (o)   (o)   (o)    |  <- anel 2\n"
-               "     |  (o)   (o)   (o)   (o)   (o)   (o)     |  <- anel 1\n"
-               "     |_______ _____________ _____ ____________|\n"
-               "     |         .-'''''''''-.                  |\n"
-               "     |        (  PLATAFORMA )                 |  <- disco central\n"
-               "     |         '-.........-'                  |\n"
-               "     |________________________________________|\n";
-    }
-
     std::string status() const {
         std::lock_guard<std::mutex> lock(mutex_);
         std::ostringstream out;
@@ -116,10 +111,10 @@ public:
 
     // Ponto único de entrada: terminal, voz e modelo de linguagem passam por aqui.
     std::string command(const std::vector<std::string>& w, Origin origin) {
+        if (!enabled()) return "A câmara central só funciona no perfil industrial (BODY_PROFILE=industrial).";
         if (w.size() < 2) return status();
         const std::string& verb = w[1];
         if (verb == "status") return status();
-        if (verb == "map") return map();
         if (verb == "scenes") return scenes();
         if (verb == "zones") return zonesText();
         if (verb == "core") return coreCommand(w, origin);
@@ -164,7 +159,7 @@ public:
             return "Anúncio feito em toda a instalação.";
         }
         if (verb == "scene" && w.size() >= 3) return runScene(foldPt(w[2]), origin);
-        return "Uso: facility status|map|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|"
+        return "Uso: facility status|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|"
                "vent on|off|scene <nome>|announce <texto>|core normal|moralidade|lockdown|release";
     }
 
@@ -175,6 +170,7 @@ private:
     mutable std::mutex mutex_;
     std::vector<std::string> zones_, ring_, panels_, lights_, vents_;
     std::vector<Scene> scenes_;
+    bool enabled_{false};
     bool lockdown_{false};
     bool morality_{false};
     std::string lastAction_;

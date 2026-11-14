@@ -28,11 +28,11 @@ C++ runtime for the robot (Raspberry Pi OS or the custom image in `os/`). Since 
 
 ### Central AI Chamber (GLaDOS-style facility control)
 
-`include/ilrdos/facility.hpp` lets ILrDOS supervise a whole facility the way GLaDOS does in Portal 1/2: a ring of cyan eyes, moving wall/ceiling panels, lights, ventilation, announcements, test chambers (scenes), personality cores and a facility lockdown. It only drives devices and robots already declared in `ilrdos-iot.txt` / `ilrdos-fleet.txt` (config: `ilrdos-facility.txt`, see `os/board/ilrdos/ilrdos-facility.txt.example`).
+`include/ilrdos/facility.hpp` lets ILrDOS supervise a whole facility the way GLaDOS does in Portal 1/2: a ring of cyan eyes, moving wall/ceiling panels, lights, ventilation, announcements, test chambers (scenes), personality cores and a facility lockdown. **Available only in the industrial body profile** (`BODY_PROFILE=industrial` in `ilrdos-robot.txt`, matching `examples/diy-robot/body/body-industrial.json`); on any other profile every `facility` command and voice phrase is refused. It only drives devices and robots already declared in `ilrdos-iot.txt` / `ilrdos-fleet.txt` (config: `ilrdos-facility.txt`, see `os/board/ilrdos/ilrdos-facility.txt.example`).
 
 There is **no neurotoxin and no armed turret**: the "toxin" is smoke-evacuation ventilation and the "turrets" are the eye ring (light/camera). `sensitive=1` devices and scenes stay terminal-only, `lockdown` stops the whole fleet, and the *morality core* (`facility core moralidade`) removes voice/AI control, leaving monitoring only.
 
-Terminal: `facility status|map|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|vent on|off|scene <name>|announce <text>|core normal|moralidade|lockdown|release`. Voice (PT-BR): *"bloqueio da fábrica"*, *"abra os painéis"*, *"ligue o anel de olhos"*. 3D view of the room: `examples/central-chamber/index.html`. Test: `tests/facility-test.sh`.
+Terminal: `facility status|zones|scenes|ring scan|idle|alert|off|panels open|close|lights on|off|vent on|off|scene <name>|announce <text>|core normal|moralidade|lockdown|release`. Voice (PT-BR): *"bloqueio da fábrica"*, *"abra os painéis"*, *"ligue o anel de olhos"*. Test: `tests/facility-test.sh`.
 
 ### Robot structure
 

@@ -1,3 +1,4 @@
+# SÓ PERFIL INDUSTRIAL: exige BODY_PROFILE=industrial em ilrdos-robot.txt.
 # ILrDOS - Câmara Central de IA (partição BOOT). Controla a "fábrica" como a GLaDOS na Aperture Science.
 # Tudo usa dispositivos/robôs já declarados em ilrdos-iot.txt e ilrdos-fleet.txt (nada novo é aberto ao mundo físico).
 # NÃO há neurotoxina nem torretas armadas: a "toxina" vira ventilação/evacuação de fumaça e as "torretas" viram o
